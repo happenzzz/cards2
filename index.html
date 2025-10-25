@@ -202,9 +202,17 @@
   const viewerCap = document.getElementById('viewerCap');
   const viewerClose = document.getElementById('viewerClose');
 
-  const LIST_JSON_URL = 'assets/list.json';
-  const MANIFEST_URL  = 'assets/manifest.json';
-  const AUTOINDEX_URL = 'assets/';
+// index.html이 있는 경로를 계산 (서브폴더에서도 안전)
+const BASE = (() => {
+  const p = location.pathname;
+  return p.endsWith('/') ? p : p.replace(/[^/]*$/, '');
+})();
+const STAMP = `?v=${Date.now()}`;     // 캐시 무력화(Cloudflare 엣지 캐시 회피)
+
+const LIST_JSON_URL = `${BASE}assets/list.json${STAMP}`;
+const MANIFEST_URL  = `${BASE}assets/manifest.json${STAMP}`;
+const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
+
 
   const CLASSIFY_KEY_PREFIX = 'jam-note-classify::';
 
@@ -433,7 +441,7 @@
         .filter(p => /\.(jpe?g|png|webp|gif)$/i.test(String(p)))
         .map(p => {
           const key = String(p).replace(/^\.?\/*assets\//,'');
-          return { key, src: 'assets/' + key, zone: loadZone(key) };
+return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
         });
       renderGrid();
       return true;
@@ -450,7 +458,7 @@
         .filter(p => /\.(jpe?g|png|webp|gif)$/i.test(String(p)))
         .map(p => {
           const key = String(p).replace(/^\.?\/*assets\//,'');
-          return { key, src: 'assets/' + key, zone: loadZone(key) };
+return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
         });
       renderGrid();
       return true;
@@ -466,7 +474,7 @@
       if (!unique.length) throw 0;
       items = unique.map(p => {
         const name = decodeURIComponent(p.split('/').pop());
-        return { key: name, src: 'assets/' + name, zone: loadZone(name) };
+return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
       });
       renderGrid();
       return true;
@@ -526,3 +534,4 @@
 </script>
 </body>
 </html>
+
