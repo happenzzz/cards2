@@ -12,7 +12,7 @@
     --ink:#182233; --muted:#7a8599; --line:#e6e9f2;
     --card:#ffffff; --shadow:0 8px 22px rgba(0,0,0,.08);
     --radius:18px; --gap:14px; --minCell:190px;
-    --dotSize:4px; --dotStep:36px;
+    --dotSize:6px; --dotStep:36px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -25,6 +25,7 @@
       #fff;
   }
 
+  /* 상단바 */
   .topbar{
     position:sticky; top:0; z-index:30; height:60px;
     display:flex; align-items:center; justify-content:flex-end; gap:10px;
@@ -61,8 +62,10 @@
     padding:12px 12px; border-top:1px solid var(--line);
     font-size:15px; line-height:1.35; min-height:44px;
     -webkit-user-select:none; user-select:none;
+    font-family:"Noto Sans KR", system-ui, sans-serif;
   }
 
+  /* 목록 안내 오버레이 */
   .overlay{
     position:fixed; inset:60px 0 0 0; display:flex; align-items:center; justify-content:center;
     pointer-events:auto; z-index:25;
@@ -75,17 +78,20 @@
   .ov-actions{margin-top:14px; display:flex; gap:10px; justify-content:center}
   .hide{display:none !important;}
 
-  /* 분류 모드(뒤 배경을 완전히 가려 중복 보임 방지) */
+  /* 분류 모드(뒤 배경 완전히 가려 중복 방지) */
   .classify{ position:fixed; inset:60px 0 0 0; z-index:22; display:none; background:#fff; }
   .classify.active{ display:block; }
   .zone-half{ position:absolute; top:0; width:50%; height:100%; overflow:auto; padding:18px; }
+  /* 왼쪽 빨강큰도트 */
   .zone-left{ left:0;
     background: radial-gradient(circle at 16px 16px, rgba(244,63,94,.28) 6px, transparent 6px) 0 0/44px 44px, transparent;
   }
+  /* 오른쪽 파랑큰도트 */
   .zone-right{ right:0;
     background: radial-gradient(circle at 16px 16px, rgba(59,130,246,.28) 6px, transparent 6px) 0 0/44px 44px, transparent;
   }
 
+  /* 굵고 귀여운 세로선 */
   .divider{
     position:absolute; top:0; bottom:0; left:50%; width:24px; transform:translateX(-50%);
     border-radius:24px;
@@ -112,20 +118,27 @@
 
   .zone-grid{ display:grid; gap:var(--gap); grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); padding-top:6px; }
 
+  /* 드래그 고스트 */
   .drag-ghost{ position:fixed; z-index:40; width:180px; pointer-events:none; opacity:.95; transform:translate(-50%, -50%); filter:drop-shadow(0 10px 18px rgba(0,0,0,.18)); will-change:transform; }
   .dragging .card{ opacity:.85 }
 
-  /* 클릭 확대 — 캡션 크게(약 3배), 함초롬바탕체 계열 */
-  .viewer{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:50; }
+  /* 클릭 확대 — 글자 3배, 함초롬바탕체 계열 */
+  .viewer{
+    position:fixed; inset:0; background:rgba(0,0,0,.5);
+    display:none; align-items:center; justify-content:center; z-index:50;
+  }
   .viewer.show{ display:flex; }
-  .viewer-card{ max-width:min(92vw, 1100px); max-height:86vh; background:#fff; border-radius:20px; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.25); display:flex; flex-direction:column; }
+  .viewer-card{
+    max-width:min(92vw, 1100px); max-height:86vh; background:#fff; border-radius:20px; overflow:hidden;
+    box-shadow:0 20px 40px rgba(0,0,0,.25); display:flex; flex-direction:column;
+  }
   .vshot{ background:#000; display:flex; align-items:center; justify-content:center; }
   .vshot img{ max-width:92vw; max-height:64vh; width:auto; height:auto; object-fit:contain; }
   .vcap{
     padding:20px 22px; border-top:1px solid #e6e9f2;
-    font-size:clamp(42px, 6.6vw, 66px);
+    font-size:clamp(42px, 6.6vw, 66px);  /* 약 3배 */
     line-height:1.2; text-align:center;
-    font-family:"HCR Batang","함초롬바탕체","Batang","Times New Roman",serif;
+    font-family: "HCR Batang", "함초롬바탕체", "Batang", "Times New Roman", serif;
   }
   .viewer .x{ position:absolute; top:14px; right:16px; background:#000; color:#fff; border:none; border-radius:12px; padding:10px 12px; font-size:14px; cursor:pointer; opacity:.9; }
 </style>
@@ -136,7 +149,7 @@
     <button id="shuffle" class="btn">🔀 섞기</button>
   </div>
 
-  <!-- 메인 그리드: 분류 모드일 땐 숨겨 중복 표시 방지 -->
+  <!-- 메인 그리드(분류 모드일 땐 숨김) -->
   <div id="mainWrap" class="wrap">
     <div id="grid" class="grid" aria-live="polite"></div>
   </div>
@@ -184,6 +197,13 @@
 
 <script>
 (() => {
+  /* ---------- 안전한 BASE 경로 + 캐시 무력화 ---------- */
+  const BASE = new URL('./', location.href);                // index.html 기준 절대경로
+  const STAMP = `?v=${Date.now()}`;                         // 엣지 캐시 회피(항상 최신)
+  const LIST_JSON_URL = new URL('assets/list.json', BASE) + STAMP;
+  const MANIFEST_URL  = new URL('assets/manifest.json', BASE) + STAMP;
+  const AUTOINDEX_URL = new URL('assets/', BASE) + STAMP;
+
   const mainWrap = document.getElementById('mainWrap');
   const grid = document.getElementById('grid');
   const shuffleBtn = document.getElementById('shuffle');
@@ -202,26 +222,13 @@
   const viewerCap = document.getElementById('viewerCap');
   const viewerClose = document.getElementById('viewerClose');
 
-// index.html이 있는 경로를 계산 (서브폴더에서도 안전)
-const BASE = (() => {
-  const p = location.pathname;
-  return p.endsWith('/') ? p : p.replace(/[^/]*$/, '');
-})();
-const STAMP = `?v=${Date.now()}`;     // 캐시 무력화(Cloudflare 엣지 캐시 회피)
-
-const LIST_JSON_URL = `${BASE}assets/list.json${STAMP}`;
-const MANIFEST_URL  = `${BASE}assets/manifest.json${STAMP}`;
-const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
-
-
   const CLASSIFY_KEY_PREFIX = 'jam-note-classify::';
-
   const baseName = (p) => (p||'').split('/').pop().replace(/\.[^.]+$/, '');
 
   let items = []; // { key, src, zone }
   let classifyMode = false;
 
-  /* ---------------- 카드 생성 ---------------- */
+  /* ---------- 카드 ---------- */
   function createCardEl(item){
     const title = baseName(item.key);
     const card = document.createElement('article');
@@ -231,16 +238,16 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
       <div class="shot"><img src="${item.src}" alt="${title}" draggable="false"></div>
       <div class="cap" aria-label="${title}">${title}</div>
     `;
-    // 클릭 확대
-    card.addEventListener('click', (e) => {
-      if (card.__dragMoved) { card.__dragMoved = false; return; } // 드래그였으면 클릭 취소
+    // 클릭 확대 (드래그와 구분)
+    card.addEventListener('click', () => {
+      if (card.__dragMoved) { card.__dragMoved = false; return; }
       openViewer(item.src, title);
     });
     enableDrag(card);
     return card;
   }
 
-  /* ---------------- 렌더 ---------------- */
+  /* ---------- 렌더 ---------- */
   function renderGrid(){
     grid.innerHTML = '';
     items.forEach(it => grid.appendChild(createCardEl(it)));
@@ -249,13 +256,11 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
   function renderClassify(){
     zoneNatural.innerHTML = '';
     zoneHuman.innerHTML = '';
-    // 미분류는 왼쪽에 보여서 바로 옮기도록
     items.forEach(it => {
       const el = createCardEl(it);
-      (it.zone === 'human' ? zoneHuman : zoneNatural).appendChild(el);
+      (it.zone === 'human' ? zoneHuman : zoneNatural).appendChild(el); // 미분류는 왼쪽
     });
-    autosize(zoneNatural);
-    autosize(zoneHuman);
+    autosize(zoneNatural); autosize(zoneHuman);
   }
 
   function autosize(container){
@@ -268,17 +273,17 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
     document.documentElement.style.setProperty('--minCell', cell + 'px');
   }
 
-  /* ---------------- 섞기 ---------------- */
+  /* ---------- 섞기 ---------- */
   shuffleBtn.addEventListener('click', () => {
     items.sort(() => Math.random() - 0.5);
     classifyMode ? renderClassify() : renderGrid();
   });
 
-  /* ---------------- 분류 모드 토글 ---------------- */
+  /* ---------- 분류 모드 ---------- */
   function setClassifyMode(on){
     classifyMode = on;
     if (on){
-      mainWrap.style.display = 'none';          // ★ 메인 그리드 숨김(중복 제거)
+      mainWrap.style.display = 'none';         // 중복 보임 방지
       classifyLayer.classList.add('active');
       classifyLayer.setAttribute('aria-hidden','false');
       classifyBtn.textContent = '✅ 분류 끝내기';
@@ -287,19 +292,15 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
       classifyLayer.classList.remove('active');
       classifyLayer.setAttribute('aria-hidden','true');
       classifyBtn.textContent = '🧭 분류하기';
-      mainWrap.style.display = '';              // ★ 다시 보이기
+      mainWrap.style.display = '';
       renderGrid();
     }
   }
   classifyBtn.addEventListener('click', () => setClassifyMode(!classifyMode));
 
-  /* ---------------- 드래그 (매우 부드럽게) ----------------
-     - Pointer Events
-     - rAF로 이동/하이라이트 1프레임 1회
-     - 드롭 시 카드 DOM을 직접 이동(리렌더 X)
-  ---------------------------------------------------------*/
+  /* ---------- 드래그(데스크탑+안드로이드 부드럽게) ---------- */
   function enableDrag(card){
-    let state = null; // {id, ghost, x, y, rectL, rectR}
+    let state = null; // {id, ghost, x, y, rectL, rectR, moved, running}
 
     card.addEventListener('pointerdown', (e) => {
       if (!classifyMode) return;
@@ -308,11 +309,11 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
       const id = e.pointerId;
       card.setPointerCapture?.(id);
 
-      // 드롭존 사각형 미리 계산(각 프레임마다 측정 X)
+      // 드롭존 사각형 한번만 측정
       const rectL = zoneNatural.getBoundingClientRect();
       const rectR = zoneHuman.getBoundingClientRect();
 
-      // 고스트 준비
+      // 고스트
       const ghost = card.cloneNode(true);
       ghost.classList.add('drag-ghost');
       const cw = Math.min(200, card.getBoundingClientRect().width);
@@ -322,7 +323,6 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
       state = { id, ghost, x:e.clientX, y:e.clientY, rectL, rectR, moved:false, running:false };
       card.__dragMoved = false;
 
-      // rAF 루프
       const loop = () => {
         if (!state) return;
         state.running = false;
@@ -340,10 +340,7 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
         if (!state.moved && (Math.abs(ev.clientX - e.clientX) > 4 || Math.abs(ev.clientY - e.clientY) > 4)){
           state.moved = true; card.__dragMoved = true;
         }
-        if (!state.running){
-          state.running = true;
-          requestAnimationFrame(loop);
-        }
+        if (!state.running){ state.running = true; requestAnimationFrame(loop); }
         autoScroll(ev.clientX, ev.clientY);
         ev.preventDefault();
       };
@@ -352,13 +349,10 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
         if (!state) return;
         const zone = pickDrop(state.x, state.y, state.rectL, state.rectR);
         if (zone){
-          // 상태 업데이트
           const key = card.dataset.key;
           const it = items.find(v => v.key === key);
           if (it){ it.zone = zone; saveZone(key, zone); }
-
-          // 카드 DOM을 직접 이동(리렌더 없이 즉시 반영)
-          (zone === 'human' ? zoneHuman : zoneNatural).appendChild(card);
+          (zone === 'human' ? zoneHuman : zoneNatural).appendChild(card); // DOM 즉시 이동
         }
         zoneNatural.parentElement.classList.remove('highlight');
         zoneHuman.parentElement.classList.remove('highlight');
@@ -392,7 +386,7 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
     return null;
   }
 
-  // 존 내부에서 자동 스크롤
+  // 존 자동 스크롤
   function autoScroll(x,y){
     const zones = [zoneNatural.parentElement, zoneHuman.parentElement];
     zones.forEach(z => {
@@ -404,7 +398,7 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
     });
   }
 
-  /* ---------------- 확대 뷰어 ---------------- */
+  /* ---------- 확대 뷰어 ---------- */
   function openViewer(src, title){
     viewerImg.src = src;
     viewerImg.alt = title;
@@ -423,7 +417,15 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
   viewerClose.addEventListener('click', closeViewer);
   window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeViewer(); });
 
-  /* ---------------- 데이터 로딩 ---------------- */
+  /* ---------- 로컬 저장 ---------- */
+  function saveZone(key, zone){
+    try{ localStorage.setItem(CLASSIFY_KEY_PREFIX + key, zone); }catch{}
+  }
+  function loadZone(key){
+    try{ return localStorage.getItem(CLASSIFY_KEY_PREFIX + key) || 'pool'; }catch{ return 'pool'; }
+  }
+
+  /* ---------- 데이터 로딩 ---------- */
   async function loadAll(){
     if (await tryListJson()) return;
     if (await tryManifest()) return;
@@ -441,7 +443,8 @@ const AUTOINDEX_URL = `${BASE}assets/${STAMP}`;
         .filter(p => /\.(jpe?g|png|webp|gif)$/i.test(String(p)))
         .map(p => {
           const key = String(p).replace(/^\.?\/*assets\//,'');
-return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
+          const src = new URL('assets/' + key, BASE).toString() + STAMP;
+          return { key, src, zone: loadZone(key) };
         });
       renderGrid();
       return true;
@@ -458,7 +461,8 @@ return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
         .filter(p => /\.(jpe?g|png|webp|gif)$/i.test(String(p)))
         .map(p => {
           const key = String(p).replace(/^\.?\/*assets\//,'');
-return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
+          const src = new URL('assets/' + key, BASE).toString() + STAMP;
+          return { key, src, zone: loadZone(key) };
         });
       renderGrid();
       return true;
@@ -474,14 +478,15 @@ return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
       if (!unique.length) throw 0;
       items = unique.map(p => {
         const name = decodeURIComponent(p.split('/').pop());
-return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
+        const src = new URL('assets/' + name, BASE).toString() + STAMP;
+        return { key: name, src, zone: loadZone(name) };
       });
       renderGrid();
       return true;
     }catch{ return false; }
   }
 
-  /* -------------- 폴더/파일 선택 -------------- */
+  /* ---------- 폴더/파일 선택 ---------- */
   function showOverlay(){ overlay.classList.remove('hide'); }
   function hideOverlay(){ overlay.classList.add('hide'); }
 
@@ -534,4 +539,3 @@ return { key, src: `${BASE}assets/` + key, zone: loadZone(key) };
 </script>
 </body>
 </html>
-
