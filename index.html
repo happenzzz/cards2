@@ -21,11 +21,11 @@
     font-family:"Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     -webkit-font-smoothing:antialiased;
     background:
-      radial-gradient(circle at 13px 13px, #dfe6fb var(--dotSize), transparent calc(var(--dotSize) + 0.5px)) 0 0/var(--dotStep) var(--dotStep),
-      #ffffff;
+      radial-gradient(circle at 13px 13px, #dfe6fb var(--dotSize), transparent calc(var(--dotSize) + .5px)) 0 0/var(--dotStep) var(--dotStep),
+      #fff;
   }
 
-  /* 상단 고정 바 */
+  /* 상단 바 */
   .topbar{
     position:sticky; top:0; z-index:30; height:60px;
     display:flex; align-items:center; justify-content:flex-end; gap:10px;
@@ -36,7 +36,7 @@
     appearance:none; border:2px solid var(--line); background:#fff; color:#0f172a;
     padding:12px 16px; border-radius:14px; font-weight:800; cursor:pointer;
     box-shadow:0 1px 0 rgba(0,0,0,.02); letter-spacing:.2px; font-size:15px;
-    transition:transform .05s ease, border-color .1s ease;
+    transition:transform .05s, border-color .1s;
   }
   .btn:active{ transform:translateY(1px) }
   .btn:hover{border-color:#d3d9eb}
@@ -48,60 +48,46 @@
     align-content:start;
   }
 
-  /* 포스트잇 카드 */
+  /* 카드(편집 금지) */
   .card{
     display:flex; flex-direction:column; background:var(--card);
     border:1.5px solid var(--line); border-radius:var(--radius);
     box-shadow:var(--shadow); overflow:hidden;
     user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
-    touch-action:none; /* 드래그 중 페이지 스크롤 방지 */
+    touch-action:none; /* 드래그 중 스크롤 방지 */
   }
   .shot{ width:100%; aspect-ratio:1/1; position:relative; overflow:hidden; background:#f6f7fb; }
-  .shot img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; draggable:false; }
+  .shot img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; }
   .cap{
     padding:12px 12px; border-top:1px solid var(--line);
     font-size:15px; line-height:1.35; min-height:44px;
-    outline:none; user-select:text; /* 캡션은 선택/편집 가능 */
+    -webkit-user-select:none; user-select:none; /* 글자 선택도 방지 */
   }
-  .cap[contenteditable="true"]:focus{ box-shadow:inset 0 0 0 2px #cfe0ff; border-radius:10px; }
 
-  /* 최초 로딩 안내 */
+  /* 오버레이(목록 못 읽을 때) */
   .overlay{
     position:fixed; inset:60px 0 0 0; display:flex; align-items:center; justify-content:center;
     pointer-events:auto; z-index:25;
     background:repeating-linear-gradient(45deg, rgba(255,255,255,.92) 0 14px, rgba(255,255,255,.97) 14px 28px);
     border-top:1px dashed #d7dce9;
   }
-  .ov-card{
-    background:#fff; border:1px solid var(--line); border-radius:16px;
-    padding:22px 20px; box-shadow:var(--shadow); text-align:center; max-width:560px;
-  }
+  .ov-card{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px 20px; box-shadow:var(--shadow); text-align:center; max-width:560px; }
   .ov-title{font-weight:800; font-size:18px; margin-bottom:8px}
   .ov-desc{color:#64748b; line-height:1.6}
   .ov-actions{margin-top:14px; display:flex; gap:10px; justify-content:center}
   .hide{display:none !important;}
 
-  /* 분류 모드 레이어 */
-  .classify{
-    position:fixed; inset:60px 0 0 0; z-index:22; display:none;
-  }
+  /* 분류 모드 */
+  .classify{ position:fixed; inset:60px 0 0 0; z-index:22; display:none; }
   .classify.active{ display:block; }
-  .zone-half{
-    position:absolute; top:0; width:50%; height:100%;
-    overflow:auto; padding:18px;
-  }
+  .zone-half{ position:absolute; top:0; width:50%; height:100%; overflow:auto; padding:18px; }
   .zone-left{ left:0;
-    background:
-      radial-gradient(circle at 16px 16px, rgba(244, 63, 94, .28) 6px, transparent 6px) 0 0/44px 44px,
-      transparent;
+    background: radial-gradient(circle at 16px 16px, rgba(244,63,94,.28) 6px, transparent 6px) 0 0/44px 44px, transparent;
   }
   .zone-right{ right:0;
-    background:
-      radial-gradient(circle at 16px 16px, rgba(59, 130, 246, .28) 6px, transparent 6px) 0 0/44px 44px,
-      transparent;
+    background: radial-gradient(circle at 16px 16px, rgba(59,130,246,.28) 6px, transparent 6px) 0 0/44px 44px, transparent;
   }
 
-  /* 굵고 귀여운 세로선 */
   .divider{
     position:absolute; top:0; bottom:0; left:50%; width:24px; transform:translateX(-50%);
     border-radius:24px;
@@ -112,27 +98,44 @@
     opacity:.98; z-index:26; pointer-events:none;
   }
 
-  /* 더 확실한 드롭 하이라이트 */
   .zone-left.highlight{ outline:4px dashed #f43f5e; outline-offset:-6px; animation:pulseL 1s infinite; }
   .zone-right.highlight{ outline:4px dashed #3b82f6; outline-offset:-6px; animation:pulseR 1s infinite; }
   @keyframes pulseL{ 0%{box-shadow:0 0 0 0 rgba(244,63,94,.25)} 70%{box-shadow:0 0 0 10px rgba(244,63,94,0)} 100%{box-shadow:0 0 0 0 rgba(244,63,94,0)} }
   @keyframes pulseR{ 0%{box-shadow:0 0 0 0 rgba(59,130,246,.25)} 70%{box-shadow:0 0 0 10px rgba(59,130,246,0)} 100%{box-shadow:0 0 0 0 rgba(59,130,246,0)} }
 
-  /* 분류용 카드 그리드 */
-  .zone-grid{
-    display:grid; gap:var(--gap);
-    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
-    padding-top:6px;
+  .zone-title{
+    position:sticky; top:0; z-index:2; margin:-8px -8px 12px; padding:12px 16px;
+    font-weight:900; font-size:18px;
+    border-radius:999px; display:inline-flex; align-items:center; gap:10px;
+    color:#0f172a; background:#fff; border:2px solid #e7ecfb; box-shadow:0 6px 14px rgba(0,0,0,.06);
   }
+  .zone-left .zone-title::before{ content:"🌿"; font-size:20px }
+  .zone-right .zone-title::before{ content:"🏙️"; font-size:20px }
+
+  .zone-grid{ display:grid; gap:var(--gap); grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); padding-top:6px; }
 
   /* 드래그 고스트 */
-  .drag-ghost{
-    position:fixed; z-index:40; width:180px; pointer-events:none; opacity:.95;
-    transform:translate(-50%, -50%); filter:drop-shadow(0 10px 18px rgba(0,0,0,.18));
-  }
+  .drag-ghost{ position:fixed; z-index:40; width:180px; pointer-events:none; opacity:.95; transform:translate(-50%, -50%); filter:drop-shadow(0 10px 18px rgba(0,0,0,.18)); }
   .dragging .card{ opacity:.85 }
 
-  @media (max-width:520px){ :root{ --minCell:160px } }
+  /* 클릭 확대 뷰어(함초롬바탕체) */
+  .viewer{
+    position:fixed; inset:0; background:rgba(0,0,0,.5);
+    display:none; align-items:center; justify-content:center; z-index:50;
+  }
+  .viewer.show{ display:flex; }
+  .viewer-card{
+    max-width:min(92vw, 1100px); max-height:86vh; background:#fff; border-radius:20px; overflow:hidden;
+    box-shadow:0 20px 40px rgba(0,0,0,.25); display:flex; flex-direction:column;
+  }
+  .vshot{ background:#000; display:flex; align-items:center; justify-content:center; }
+  .vshot img{ max-width:92vw; max-height:64vh; width:auto; height:auto; object-fit:contain; }
+  .vcap{
+    padding:18px 20px; border-top:1px solid #e6e9f2;
+    font-size:22px; line-height:1.6; text-align:center;
+    font-family: "HCR Batang", "함초롬바탕체", "Batang", "Times New Roman", serif;
+  }
+  .viewer .x{ position:absolute; top:14px; right:16px; background:#000; color:#fff; border:none; border-radius:12px; padding:10px 12px; font-size:14px; cursor:pointer; opacity:.9; }
 </style>
 </head>
 <body>
@@ -145,7 +148,7 @@
     <div id="grid" class="grid" aria-live="polite"></div>
   </div>
 
-  <!-- 분류 모드 레이어 -->
+  <!-- 분류 모드 -->
   <div id="classify" class="classify" aria-hidden="true">
     <div class="zone-half zone-left">
       <div class="zone-title">자연환경</div>
@@ -158,7 +161,7 @@
     </div>
   </div>
 
-  <!-- 폴더/파일 선택 오버레이 -->
+  <!-- 목록 안내 -->
   <div id="overlay" class="overlay hide">
     <div class="ov-card">
       <div class="ov-title">이미지 목록을 자동으로 가져오지 못했어요</div>
@@ -170,6 +173,15 @@
         <button id="pickDir" class="btn">📁 폴더 선택</button>
         <button id="pickFiles" class="btn">🖼️ 파일 선택</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 클릭 확대 뷰어 -->
+  <div id="viewer" class="viewer" aria-hidden="true">
+    <div class="viewer-card">
+      <button class="x" id="viewerClose">닫기 ✕</button>
+      <div class="vshot"><img id="viewerImg" alt=""></div>
+      <div class="vcap" id="viewerCap"></div>
     </div>
   </div>
 
@@ -191,19 +203,35 @@
   const folderInput = document.getElementById('fileInput');
   const filesInput = document.getElementById('multiInput');
 
+  // 클릭 확대 뷰어
+  const viewer = document.getElementById('viewer');
+  const viewerImg = document.getElementById('viewerImg');
+  const viewerCap = document.getElementById('viewerCap');
+  const viewerClose = document.getElementById('viewerClose');
+
   // 데이터 소스(우선순위)
   const LIST_JSON_URL = 'assets/list.json';
   const MANIFEST_URL  = 'assets/manifest.json';
   const AUTOINDEX_URL = 'assets/';
 
-  const CAPTION_KEY_PREFIX  = 'jam-note-caption::';
   const CLASSIFY_KEY_PREFIX = 'jam-note-classify::'; // natural/human 저장
+  const LOG_KEY = 'jam-logs';
 
   const $ = (sel, el=document) => el.querySelector(sel);
   const baseName = (p) => (p||'').split('/').pop().replace(/\.[^.]+$/, '');
 
-  let items = []; // { key, src, zone: 'pool'|'natural'|'human' }
+  let items = []; // { key, src, zone }
   let classifyMode = false;
+  let dragState = null; // {card,key,ghost,startX,startY, moved}
+
+  /* ---------- 로그 저장 ---------- */
+  function pushLog(kind, payload){
+    try{
+      const arr = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+      arr.push({ t: new Date().toISOString(), kind, ...payload });
+      localStorage.setItem(LOG_KEY, JSON.stringify(arr));
+    }catch{}
+  }
 
   function saveZone(key, zone){
     try{ localStorage.setItem(CLASSIFY_KEY_PREFIX + key, zone); }catch{}
@@ -212,23 +240,22 @@
     try{ return localStorage.getItem(CLASSIFY_KEY_PREFIX + key) || 'pool'; }catch{ return 'pool'; }
   }
 
+  /* ---------- 카드 생성 (편집 불가) ---------- */
   function createCardEl(item){
-    const savedCap = localStorage.getItem(CAPTION_KEY_PREFIX + item.key);
-    const title = savedCap ?? baseName(item.key);
-
+    const title = baseName(item.key);
     const card = document.createElement('article');
     card.className = 'card';
     card.dataset.key = item.key;
     card.dataset.zone = item.zone;
     card.innerHTML = `
       <div class="shot"><img src="${item.src}" alt="${title}" draggable="false"></div>
-      <div class="cap" contenteditable="true" spellcheck="false"></div>
+      <div class="cap" aria-label="${title}">${title}</div>
     `;
-    $('.cap', card).textContent = title;
 
-    // 캡션 저장
-    $('.cap', card).addEventListener('input', (e) => {
-      localStorage.setItem(CAPTION_KEY_PREFIX + item.key, e.currentTarget.textContent.trim());
+    // 클릭: 확대 뷰어 (드래그로 살짝 움직였으면 클릭 취소)
+    card.addEventListener('click', (e) => {
+      if (dragState && dragState.moved) return; // 드래그로 판정된 경우 클릭 취소
+      openViewer(item.src, title);
     });
 
     // 분류 모드 드래그 활성화
@@ -236,6 +263,7 @@
     return card;
   }
 
+  /* ---------- 렌더 ---------- */
   function renderGrid(){
     grid.innerHTML = '';
     items.forEach(it => grid.appendChild(createCardEl(it)));
@@ -252,7 +280,7 @@
     autosize(zoneNatural); autosize(zoneHuman);
   }
 
-  // 카드 수가 많아지면 셀 크기 자동 축소
+  // 카드 수에 따른 셀 크기
   function autosize(container){
     const n = container.children.length;
     let cell = 200;
@@ -287,23 +315,23 @@
   }
   classifyBtn.addEventListener('click', () => setClassifyMode(!classifyMode));
 
-  /* ===== 전역 드래그 매니저 (Pointer Events) =====
-     - 데스크탑/안드로이드 모두 안정
-     - 드롭 즉시 localStorage 저장
-     - 드래그 중 드롭존 하이라이트 & 오토스크롤
-  */
-  let dragState = null; // {card,key,ghost}
+  /* ---------- 드래그 (Pointer Events) ---------- */
   function enableDrag(card){
     card.addEventListener('pointerdown', (e) => {
       if (!classifyMode) return;
-      if (e.button !== 0 && e.pointerType === 'mouse') return; // 마우스 좌클릭만
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
       startDrag(card, e);
-    });
+    }, {passive:false});
   }
 
   function startDrag(card, e){
     const key = card.dataset.key;
-    dragState = { card, key, ghost: null };
+    dragState = {
+      card, key,
+      startX: e.clientX, startY: e.clientY,
+      moved: false,
+      ghost: null
+    };
     document.body.classList.add('dragging');
     card.setPointerCapture?.(e.pointerId);
 
@@ -319,10 +347,15 @@
     window.addEventListener('pointermove', onMove, {passive:false});
     window.addEventListener('pointerup', onUp, {passive:false});
     window.addEventListener('pointercancel', onCancel, {passive:false});
+    e.preventDefault();
   }
 
   function onMove(e){
     if (!dragState) return;
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+    if (!dragState.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) dragState.moved = true;
+
     moveGhost(e.clientX, e.clientY);
     highlightDrop(e.clientX, e.clientY);
     autoScroll(e.clientX, e.clientY);
@@ -335,8 +368,10 @@
     if (zone){
       const it = items.find(v => v.key === dragState.key);
       if (it){
+        const before = it.zone;
         it.zone = zone;
-        saveZone(dragState.key, zone); // ★ 즉시 저장
+        saveZone(dragState.key, zone);
+        pushLog('drop', { key: dragState.key, from: before, to: zone });
       }
     }
     cleanupDrag();
@@ -363,23 +398,20 @@
     dragState = null;
   }
 
-  function elementRect(el){ return el.getBoundingClientRect(); }
-
   function pickDrop(x,y){
-    const rL = elementRect(zoneNatural);
-    const rR = elementRect(zoneHuman);
+    const rL = zoneNatural.getBoundingClientRect();
+    const rR = zoneHuman.getBoundingClientRect();
     if (x>=rL.left && x<=rL.right && y>=rL.top && y<=rL.bottom) return 'natural';
     if (x>=rR.left && x<=rR.right && y>=rR.top && y<=rR.bottom) return 'human';
     return null;
   }
-
   function highlightDrop(x,y){
-    const zone = pickDrop(x,y);
-    zoneNatural.parentElement.classList.toggle('highlight', zone==='natural');
-    zoneHuman.parentElement.classList.toggle('highlight', zone==='human');
+    const z = pickDrop(x,y);
+    zoneNatural.parentElement.classList.toggle('highlight', z==='natural');
+    zoneHuman.parentElement.classList.toggle('highlight', z==='human');
   }
 
-  // 드래그 중 오토스크롤 (존 상단/하단 60px 근처)
+  // 존 내부로 드래그할 때 자동 스크롤
   function autoScroll(x,y){
     const zones = [zoneNatural.parentElement, zoneHuman.parentElement];
     zones.forEach(z => {
@@ -391,7 +423,26 @@
     });
   }
 
-  /* ===== 데이터 로딩 순서 ===== */
+  /* ---------- 클릭 확대 뷰어 ---------- */
+  function openViewer(src, title){
+    viewerImg.src = src;
+    viewerImg.alt = title;
+    viewerCap.textContent = title;
+    viewer.classList.add('show');
+    viewer.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+  }
+  function closeViewer(){
+    viewer.classList.remove('show');
+    viewer.setAttribute('aria-hidden','true');
+    viewerImg.src = '';
+    document.body.style.overflow='';
+  }
+  viewer.addEventListener('click', (e)=>{ if (e.target === viewer) closeViewer(); });
+  viewerClose.addEventListener('click', closeViewer);
+  window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeViewer(); });
+
+  /* ---------- 데이터 로딩 ---------- */
   async function loadAll(){
     if (await tryListJson()) return;
     if (await tryManifest()) return;
@@ -403,7 +454,7 @@
     try{
       const res = await fetch(LIST_JSON_URL, {cache:'no-store'});
       if(!res.ok) throw 0;
-      const data = await res.json();               // {images:[...]} 또는 [...]
+      const data = await res.json();
       const files = Array.isArray(data) ? data : (data.images || []);
       if(!files.length) throw 0;
       items = files
@@ -452,7 +503,7 @@
     }catch{ return false; }
   }
 
-  /* ===== 폴더/파일 선택 (로컬/https에서) ===== */
+  /* ---------- 폴더/파일 선택 ---------- */
   function showOverlay(){ overlay.classList.remove('hide'); }
   function hideOverlay(){ overlay.classList.add('hide'); }
 
@@ -499,7 +550,7 @@
     hideOverlay(); renderGrid();
   });
 
-  // 드래그&드롭으로도 추가 가능
+  // 드래그&드롭 업로드도 지원
   ['dragenter','dragover'].forEach(ev => {
     document.addEventListener(ev, (e) => { e.preventDefault(); }, {passive:false});
   });
