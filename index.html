@@ -25,7 +25,6 @@
       #fff;
   }
 
-  /* 상단 바 */
   .topbar{
     position:sticky; top:0; z-index:30; height:60px;
     display:flex; align-items:center; justify-content:flex-end; gap:10px;
@@ -54,17 +53,16 @@
     border:1.5px solid var(--line); border-radius:var(--radius);
     box-shadow:var(--shadow); overflow:hidden;
     user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
-    touch-action:none; /* 드래그 중 스크롤 방지 */
+    touch-action:none;
   }
   .shot{ width:100%; aspect-ratio:1/1; position:relative; overflow:hidden; background:#f6f7fb; }
-  .shot img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; }
+  .shot img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; -webkit-user-drag:none; }
   .cap{
     padding:12px 12px; border-top:1px solid var(--line);
     font-size:15px; line-height:1.35; min-height:44px;
-    -webkit-user-select:none; user-select:none; /* 글자 선택도 방지 */
+    -webkit-user-select:none; user-select:none;
   }
 
-  /* 오버레이(목록 못 읽을 때) */
   .overlay{
     position:fixed; inset:60px 0 0 0; display:flex; align-items:center; justify-content:center;
     pointer-events:auto; z-index:25;
@@ -114,11 +112,10 @@
 
   .zone-grid{ display:grid; gap:var(--gap); grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); padding-top:6px; }
 
-  /* 드래그 고스트 */
   .drag-ghost{ position:fixed; z-index:40; width:180px; pointer-events:none; opacity:.95; transform:translate(-50%, -50%); filter:drop-shadow(0 10px 18px rgba(0,0,0,.18)); }
   .dragging .card{ opacity:.85 }
 
-  /* 클릭 확대 뷰어(함초롬바탕체) */
+  /* 클릭 확대 뷰어 — 글자 3배, 함초롬바탕체 계열 */
   .viewer{
     position:fixed; inset:0; background:rgba(0,0,0,.5);
     display:none; align-items:center; justify-content:center; z-index:50;
@@ -131,8 +128,9 @@
   .vshot{ background:#000; display:flex; align-items:center; justify-content:center; }
   .vshot img{ max-width:92vw; max-height:64vh; width:auto; height:auto; object-fit:contain; }
   .vcap{
-    padding:18px 20px; border-top:1px solid #e6e9f2;
-    font-size:22px; line-height:1.6; text-align:center;
+    padding:20px 22px; border-top:1px solid #e6e9f2;
+    font-size:clamp(42px, 6.6vw, 66px);  /* ← 약 3배 */
+    line-height:1.2; text-align:center;
     font-family: "HCR Batang", "함초롬바탕체", "Batang", "Times New Roman", serif;
   }
   .viewer .x{ position:absolute; top:14px; right:16px; background:#000; color:#fff; border:none; border-radius:12px; padding:10px 12px; font-size:14px; cursor:pointer; opacity:.9; }
@@ -148,7 +146,6 @@
     <div id="grid" class="grid" aria-live="polite"></div>
   </div>
 
-  <!-- 분류 모드 -->
   <div id="classify" class="classify" aria-hidden="true">
     <div class="zone-half zone-left">
       <div class="zone-title">자연환경</div>
@@ -161,7 +158,6 @@
     </div>
   </div>
 
-  <!-- 목록 안내 -->
   <div id="overlay" class="overlay hide">
     <div class="ov-card">
       <div class="ov-title">이미지 목록을 자동으로 가져오지 못했어요</div>
@@ -176,7 +172,6 @@
     </div>
   </div>
 
-  <!-- 클릭 확대 뷰어 -->
   <div id="viewer" class="viewer" aria-hidden="true">
     <div class="viewer-card">
       <button class="x" id="viewerClose">닫기 ✕</button>
@@ -185,7 +180,6 @@
     </div>
   </div>
 
-  <!-- 숨김 입력 -->
   <input id="fileInput" type="file" webkitdirectory multiple accept="image/*" style="display:none" />
   <input id="multiInput" type="file" multiple accept="image/*" style="display:none" />
 
@@ -203,18 +197,16 @@
   const folderInput = document.getElementById('fileInput');
   const filesInput = document.getElementById('multiInput');
 
-  // 클릭 확대 뷰어
   const viewer = document.getElementById('viewer');
   const viewerImg = document.getElementById('viewerImg');
   const viewerCap = document.getElementById('viewerCap');
   const viewerClose = document.getElementById('viewerClose');
 
-  // 데이터 소스(우선순위)
   const LIST_JSON_URL = 'assets/list.json';
   const MANIFEST_URL  = 'assets/manifest.json';
   const AUTOINDEX_URL = 'assets/';
 
-  const CLASSIFY_KEY_PREFIX = 'jam-note-classify::'; // natural/human 저장
+  const CLASSIFY_KEY_PREFIX = 'jam-note-classify::';
   const LOG_KEY = 'jam-logs';
 
   const $ = (sel, el=document) => el.querySelector(sel);
@@ -222,9 +214,8 @@
 
   let items = []; // { key, src, zone }
   let classifyMode = false;
-  let dragState = null; // {card,key,ghost,startX,startY, moved}
+  let dragState = null; // {card,key,ghost,startX,startY,moved}
 
-  /* ---------- 로그 저장 ---------- */
   function pushLog(kind, payload){
     try{
       const arr = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
@@ -232,7 +223,6 @@
       localStorage.setItem(LOG_KEY, JSON.stringify(arr));
     }catch{}
   }
-
   function saveZone(key, zone){
     try{ localStorage.setItem(CLASSIFY_KEY_PREFIX + key, zone); }catch{}
   }
@@ -240,7 +230,6 @@
     try{ return localStorage.getItem(CLASSIFY_KEY_PREFIX + key) || 'pool'; }catch{ return 'pool'; }
   }
 
-  /* ---------- 카드 생성 (편집 불가) ---------- */
   function createCardEl(item){
     const title = baseName(item.key);
     const card = document.createElement('article');
@@ -251,19 +240,15 @@
       <div class="shot"><img src="${item.src}" alt="${title}" draggable="false"></div>
       <div class="cap" aria-label="${title}">${title}</div>
     `;
-
-    // 클릭: 확대 뷰어 (드래그로 살짝 움직였으면 클릭 취소)
+    // 클릭: 확대(드래그로 판정되면 클릭 무시)
     card.addEventListener('click', (e) => {
-      if (dragState && dragState.moved) return; // 드래그로 판정된 경우 클릭 취소
+      if (dragState && dragState.moved) return;
       openViewer(item.src, title);
     });
-
-    // 분류 모드 드래그 활성화
     enableDrag(card);
     return card;
   }
 
-  /* ---------- 렌더 ---------- */
   function renderGrid(){
     grid.innerHTML = '';
     items.forEach(it => grid.appendChild(createCardEl(it)));
@@ -274,13 +259,13 @@
     zoneHuman.innerHTML = '';
     items.forEach(it => {
       const el = createCardEl(it);
-      if (it.zone === 'natural') zoneNatural.appendChild(el);
-      else if (it.zone === 'human') zoneHuman.appendChild(el);
+      // ★ 미분류(pool)은 왼쪽 영역에 보여서 바로 끌 수 있게
+      if (it.zone === 'human') zoneHuman.appendChild(el);
+      else zoneNatural.appendChild(el);
     });
     autosize(zoneNatural); autosize(zoneHuman);
   }
 
-  // 카드 수에 따른 셀 크기
   function autosize(container){
     const n = container.children.length;
     let cell = 200;
@@ -291,14 +276,12 @@
     document.documentElement.style.setProperty('--minCell', cell + 'px');
   }
 
-  // 섞기
   function shuffleCards(){
     items.sort(() => Math.random() - 0.5);
     classifyMode ? renderClassify() : renderGrid();
   }
   shuffleBtn.addEventListener('click', shuffleCards);
 
-  // 분류 모드 토글
   function setClassifyMode(on){
     classifyMode = on;
     if (on){
@@ -315,10 +298,10 @@
   }
   classifyBtn.addEventListener('click', () => setClassifyMode(!classifyMode));
 
-  /* ---------- 드래그 (Pointer Events) ---------- */
+  /* ===== 드래그 (Pointer Events) ===== */
   function enableDrag(card){
     card.addEventListener('pointerdown', (e) => {
-      if (!classifyMode) return;
+      if (!classifyMode) return;                   // 분류 모드에서만 드래그
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       startDrag(card, e);
     }, {passive:false});
@@ -326,16 +309,11 @@
 
   function startDrag(card, e){
     const key = card.dataset.key;
-    dragState = {
-      card, key,
-      startX: e.clientX, startY: e.clientY,
-      moved: false,
-      ghost: null
-    };
+    dragState = { card, key, startX:e.clientX, startY:e.clientY, moved:false, ghost:null };
     document.body.classList.add('dragging');
     card.setPointerCapture?.(e.pointerId);
 
-    // 고스트 생성
+    // 고스트
     const rect = card.getBoundingClientRect();
     const ghost = card.cloneNode(true);
     ghost.classList.add('drag-ghost');
@@ -380,13 +358,7 @@
   }
 
   function onCancel(){ cleanupDrag(); }
-
-  function moveGhost(x,y){
-    if (!dragState?.ghost) return;
-    dragState.ghost.style.left = x + 'px';
-    dragState.ghost.style.top  = y + 'px';
-  }
-
+  function moveGhost(x,y){ if (dragState?.ghost){ dragState.ghost.style.left = x+'px'; dragState.ghost.style.top = y+'px'; } }
   function cleanupDrag(){
     zoneNatural.parentElement.classList.remove('highlight');
     zoneHuman.parentElement.classList.remove('highlight');
@@ -410,8 +382,6 @@
     zoneNatural.parentElement.classList.toggle('highlight', z==='natural');
     zoneHuman.parentElement.classList.toggle('highlight', z==='human');
   }
-
-  // 존 내부로 드래그할 때 자동 스크롤
   function autoScroll(x,y){
     const zones = [zoneNatural.parentElement, zoneHuman.parentElement];
     zones.forEach(z => {
@@ -423,7 +393,7 @@
     });
   }
 
-  /* ---------- 클릭 확대 뷰어 ---------- */
+  /* ===== 클릭 확대 뷰어 ===== */
   function openViewer(src, title){
     viewerImg.src = src;
     viewerImg.alt = title;
@@ -442,7 +412,7 @@
   viewerClose.addEventListener('click', closeViewer);
   window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeViewer(); });
 
-  /* ---------- 데이터 로딩 ---------- */
+  /* ===== 데이터 로딩 ===== */
   async function loadAll(){
     if (await tryListJson()) return;
     if (await tryManifest()) return;
@@ -452,7 +422,7 @@
 
   async function tryListJson(){
     try{
-      const res = await fetch(LIST_JSON_URL, {cache:'no-store'});
+      const res = await fetch('assets/list.json', {cache:'no-store'});
       if(!res.ok) throw 0;
       const data = await res.json();
       const files = Array.isArray(data) ? data : (data.images || []);
@@ -467,10 +437,9 @@
       return true;
     }catch{ return false; }
   }
-
   async function tryManifest(){
     try{
-      const res = await fetch(MANIFEST_URL, {cache:'no-store'});
+      const res = await fetch('assets/manifest.json', {cache:'no-store'});
       if(!res.ok) throw 0;
       const data = await res.json();
       const files = Array.isArray(data) ? data : (data.images || []);
@@ -485,10 +454,9 @@
       return true;
     }catch{ return false; }
   }
-
   async function tryAutoindex(){
     try{
-      const res = await fetch(AUTOINDEX_URL, {cache:'no-store'});
+      const res = await fetch('assets/', {cache:'no-store'});
       if(!res.ok) throw 0;
       const html = await res.text();
       const hrefs = [...html.matchAll(/href="([^"]+\.(?:jpe?g|png|webp|gif))"/gi)].map(m => m[1]);
@@ -503,7 +471,7 @@
     }catch{ return false; }
   }
 
-  /* ---------- 폴더/파일 선택 ---------- */
+  /* ===== 폴더/파일 선택 ===== */
   function showOverlay(){ overlay.classList.remove('hide'); }
   function hideOverlay(){ overlay.classList.add('hide'); }
 
@@ -550,7 +518,6 @@
     hideOverlay(); renderGrid();
   });
 
-  // 드래그&드롭 업로드도 지원
   ['dragenter','dragover'].forEach(ev => {
     document.addEventListener(ev, (e) => { e.preventDefault(); }, {passive:false});
   });
