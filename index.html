@@ -47,13 +47,13 @@
     align-content:start;
   }
 
-  /* 카드(편집 금지) */
+  /* 카드(편집 불가) */
   .card{
     display:flex; flex-direction:column; background:var(--card);
     border:1.5px solid var(--line); border-radius:var(--radius);
     box-shadow:var(--shadow); overflow:hidden;
     user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
-    touch-action:none;
+    touch-action:none; /* 드래그 중 스크롤 방지 */
   }
   .shot{ width:100%; aspect-ratio:1/1; position:relative; overflow:hidden; background:#f6f7fb; }
   .shot img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; -webkit-user-drag:none; }
@@ -75,8 +75,8 @@
   .ov-actions{margin-top:14px; display:flex; gap:10px; justify-content:center}
   .hide{display:none !important;}
 
-  /* 분류 모드 */
-  .classify{ position:fixed; inset:60px 0 0 0; z-index:22; display:none; }
+  /* 분류 모드(뒤 배경을 완전히 가려 중복 보임 방지) */
+  .classify{ position:fixed; inset:60px 0 0 0; z-index:22; display:none; background:#fff; }
   .classify.active{ display:block; }
   .zone-half{ position:absolute; top:0; width:50%; height:100%; overflow:auto; padding:18px; }
   .zone-left{ left:0;
@@ -112,26 +112,20 @@
 
   .zone-grid{ display:grid; gap:var(--gap); grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); padding-top:6px; }
 
-  .drag-ghost{ position:fixed; z-index:40; width:180px; pointer-events:none; opacity:.95; transform:translate(-50%, -50%); filter:drop-shadow(0 10px 18px rgba(0,0,0,.18)); }
+  .drag-ghost{ position:fixed; z-index:40; width:180px; pointer-events:none; opacity:.95; transform:translate(-50%, -50%); filter:drop-shadow(0 10px 18px rgba(0,0,0,.18)); will-change:transform; }
   .dragging .card{ opacity:.85 }
 
-  /* 클릭 확대 뷰어 — 글자 3배, 함초롬바탕체 계열 */
-  .viewer{
-    position:fixed; inset:0; background:rgba(0,0,0,.5);
-    display:none; align-items:center; justify-content:center; z-index:50;
-  }
+  /* 클릭 확대 — 캡션 크게(약 3배), 함초롬바탕체 계열 */
+  .viewer{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:50; }
   .viewer.show{ display:flex; }
-  .viewer-card{
-    max-width:min(92vw, 1100px); max-height:86vh; background:#fff; border-radius:20px; overflow:hidden;
-    box-shadow:0 20px 40px rgba(0,0,0,.25); display:flex; flex-direction:column;
-  }
+  .viewer-card{ max-width:min(92vw, 1100px); max-height:86vh; background:#fff; border-radius:20px; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.25); display:flex; flex-direction:column; }
   .vshot{ background:#000; display:flex; align-items:center; justify-content:center; }
   .vshot img{ max-width:92vw; max-height:64vh; width:auto; height:auto; object-fit:contain; }
   .vcap{
     padding:20px 22px; border-top:1px solid #e6e9f2;
-    font-size:clamp(42px, 6.6vw, 66px);  /* ← 약 3배 */
+    font-size:clamp(42px, 6.6vw, 66px);
     line-height:1.2; text-align:center;
-    font-family: "HCR Batang", "함초롬바탕체", "Batang", "Times New Roman", serif;
+    font-family:"HCR Batang","함초롬바탕체","Batang","Times New Roman",serif;
   }
   .viewer .x{ position:absolute; top:14px; right:16px; background:#000; color:#fff; border:none; border-radius:12px; padding:10px 12px; font-size:14px; cursor:pointer; opacity:.9; }
 </style>
@@ -142,10 +136,12 @@
     <button id="shuffle" class="btn">🔀 섞기</button>
   </div>
 
-  <div class="wrap">
+  <!-- 메인 그리드: 분류 모드일 땐 숨겨 중복 표시 방지 -->
+  <div id="mainWrap" class="wrap">
     <div id="grid" class="grid" aria-live="polite"></div>
   </div>
 
+  <!-- 분류 모드 레이어 -->
   <div id="classify" class="classify" aria-hidden="true">
     <div class="zone-half zone-left">
       <div class="zone-title">자연환경</div>
@@ -158,6 +154,7 @@
     </div>
   </div>
 
+  <!-- 목록 안내 -->
   <div id="overlay" class="overlay hide">
     <div class="ov-card">
       <div class="ov-title">이미지 목록을 자동으로 가져오지 못했어요</div>
@@ -172,6 +169,7 @@
     </div>
   </div>
 
+  <!-- 클릭 확대 뷰어 -->
   <div id="viewer" class="viewer" aria-hidden="true">
     <div class="viewer-card">
       <button class="x" id="viewerClose">닫기 ✕</button>
@@ -180,11 +178,13 @@
     </div>
   </div>
 
+  <!-- 숨김 입력 -->
   <input id="fileInput" type="file" webkitdirectory multiple accept="image/*" style="display:none" />
   <input id="multiInput" type="file" multiple accept="image/*" style="display:none" />
 
 <script>
 (() => {
+  const mainWrap = document.getElementById('mainWrap');
   const grid = document.getElementById('grid');
   const shuffleBtn = document.getElementById('shuffle');
   const classifyBtn = document.getElementById('classifyBtn');
@@ -207,48 +207,32 @@
   const AUTOINDEX_URL = 'assets/';
 
   const CLASSIFY_KEY_PREFIX = 'jam-note-classify::';
-  const LOG_KEY = 'jam-logs';
 
-  const $ = (sel, el=document) => el.querySelector(sel);
   const baseName = (p) => (p||'').split('/').pop().replace(/\.[^.]+$/, '');
 
   let items = []; // { key, src, zone }
   let classifyMode = false;
-  let dragState = null; // {card,key,ghost,startX,startY,moved}
 
-  function pushLog(kind, payload){
-    try{
-      const arr = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
-      arr.push({ t: new Date().toISOString(), kind, ...payload });
-      localStorage.setItem(LOG_KEY, JSON.stringify(arr));
-    }catch{}
-  }
-  function saveZone(key, zone){
-    try{ localStorage.setItem(CLASSIFY_KEY_PREFIX + key, zone); }catch{}
-  }
-  function loadZone(key){
-    try{ return localStorage.getItem(CLASSIFY_KEY_PREFIX + key) || 'pool'; }catch{ return 'pool'; }
-  }
-
+  /* ---------------- 카드 생성 ---------------- */
   function createCardEl(item){
     const title = baseName(item.key);
     const card = document.createElement('article');
     card.className = 'card';
     card.dataset.key = item.key;
-    card.dataset.zone = item.zone;
     card.innerHTML = `
       <div class="shot"><img src="${item.src}" alt="${title}" draggable="false"></div>
       <div class="cap" aria-label="${title}">${title}</div>
     `;
-    // 클릭: 확대(드래그로 판정되면 클릭 무시)
+    // 클릭 확대
     card.addEventListener('click', (e) => {
-      if (dragState && dragState.moved) return;
+      if (card.__dragMoved) { card.__dragMoved = false; return; } // 드래그였으면 클릭 취소
       openViewer(item.src, title);
     });
     enableDrag(card);
     return card;
   }
 
+  /* ---------------- 렌더 ---------------- */
   function renderGrid(){
     grid.innerHTML = '';
     items.forEach(it => grid.appendChild(createCardEl(it)));
@@ -257,13 +241,13 @@
   function renderClassify(){
     zoneNatural.innerHTML = '';
     zoneHuman.innerHTML = '';
+    // 미분류는 왼쪽에 보여서 바로 옮기도록
     items.forEach(it => {
       const el = createCardEl(it);
-      // ★ 미분류(pool)은 왼쪽 영역에 보여서 바로 끌 수 있게
-      if (it.zone === 'human') zoneHuman.appendChild(el);
-      else zoneNatural.appendChild(el);
+      (it.zone === 'human' ? zoneHuman : zoneNatural).appendChild(el);
     });
-    autosize(zoneNatural); autosize(zoneHuman);
+    autosize(zoneNatural);
+    autosize(zoneHuman);
   }
 
   function autosize(container){
@@ -276,15 +260,17 @@
     document.documentElement.style.setProperty('--minCell', cell + 'px');
   }
 
-  function shuffleCards(){
+  /* ---------------- 섞기 ---------------- */
+  shuffleBtn.addEventListener('click', () => {
     items.sort(() => Math.random() - 0.5);
     classifyMode ? renderClassify() : renderGrid();
-  }
-  shuffleBtn.addEventListener('click', shuffleCards);
+  });
 
+  /* ---------------- 분류 모드 토글 ---------------- */
   function setClassifyMode(on){
     classifyMode = on;
     if (on){
+      mainWrap.style.display = 'none';          // ★ 메인 그리드 숨김(중복 제거)
       classifyLayer.classList.add('active');
       classifyLayer.setAttribute('aria-hidden','false');
       classifyBtn.textContent = '✅ 분류 끝내기';
@@ -293,107 +279,124 @@
       classifyLayer.classList.remove('active');
       classifyLayer.setAttribute('aria-hidden','true');
       classifyBtn.textContent = '🧭 분류하기';
+      mainWrap.style.display = '';              // ★ 다시 보이기
       renderGrid();
     }
   }
   classifyBtn.addEventListener('click', () => setClassifyMode(!classifyMode));
 
-  /* ===== 드래그 (Pointer Events) ===== */
+  /* ---------------- 드래그 (매우 부드럽게) ----------------
+     - Pointer Events
+     - rAF로 이동/하이라이트 1프레임 1회
+     - 드롭 시 카드 DOM을 직접 이동(리렌더 X)
+  ---------------------------------------------------------*/
   function enableDrag(card){
+    let state = null; // {id, ghost, x, y, rectL, rectR}
+
     card.addEventListener('pointerdown', (e) => {
-      if (!classifyMode) return;                   // 분류 모드에서만 드래그
+      if (!classifyMode) return;
       if (e.button !== 0 && e.pointerType === 'mouse') return;
-      startDrag(card, e);
-    }, {passive:false});
+
+      const id = e.pointerId;
+      card.setPointerCapture?.(id);
+
+      // 드롭존 사각형 미리 계산(각 프레임마다 측정 X)
+      const rectL = zoneNatural.getBoundingClientRect();
+      const rectR = zoneHuman.getBoundingClientRect();
+
+      // 고스트 준비
+      const ghost = card.cloneNode(true);
+      ghost.classList.add('drag-ghost');
+      const cw = Math.min(200, card.getBoundingClientRect().width);
+      ghost.style.width = cw + 'px';
+      document.body.appendChild(ghost);
+
+      state = { id, ghost, x:e.clientX, y:e.clientY, rectL, rectR, moved:false, running:false };
+      card.__dragMoved = false;
+
+      // rAF 루프
+      const loop = () => {
+        if (!state) return;
+        state.running = false;
+        ghost.style.left = state.x + 'px';
+        ghost.style.top  = state.y + 'px';
+
+        const z = pickDrop(state.x, state.y, state.rectL, state.rectR);
+        zoneNatural.parentElement.classList.toggle('highlight', z==='natural');
+        zoneHuman.parentElement.classList.toggle('highlight', z==='human');
+      };
+
+      const onMove = (ev) => {
+        if (!state) return;
+        state.x = ev.clientX; state.y = ev.clientY;
+        if (!state.moved && (Math.abs(ev.clientX - e.clientX) > 4 || Math.abs(ev.clientY - e.clientY) > 4)){
+          state.moved = true; card.__dragMoved = true;
+        }
+        if (!state.running){
+          state.running = true;
+          requestAnimationFrame(loop);
+        }
+        autoScroll(ev.clientX, ev.clientY);
+        ev.preventDefault();
+      };
+
+      const onUp = (ev) => {
+        if (!state) return;
+        const zone = pickDrop(state.x, state.y, state.rectL, state.rectR);
+        if (zone){
+          // 상태 업데이트
+          const key = card.dataset.key;
+          const it = items.find(v => v.key === key);
+          if (it){ it.zone = zone; saveZone(key, zone); }
+
+          // 카드 DOM을 직접 이동(리렌더 없이 즉시 반영)
+          (zone === 'human' ? zoneHuman : zoneNatural).appendChild(card);
+        }
+        zoneNatural.parentElement.classList.remove('highlight');
+        zoneHuman.parentElement.classList.remove('highlight');
+        state.ghost.remove(); state = null;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        ev.preventDefault();
+      };
+
+      const onCancel = () => {
+        if (!state) return;
+        zoneNatural.parentElement.classList.remove('highlight');
+        zoneHuman.parentElement.classList.remove('highlight');
+        state.ghost.remove(); state = null;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+      };
+
+      window.addEventListener('pointermove', onMove, {passive:false});
+      window.addEventListener('pointerup', onUp, {passive:false});
+      window.addEventListener('pointercancel', onCancel, {passive:false});
+      e.preventDefault();
+    });
   }
 
-  function startDrag(card, e){
-    const key = card.dataset.key;
-    dragState = { card, key, startX:e.clientX, startY:e.clientY, moved:false, ghost:null };
-    document.body.classList.add('dragging');
-    card.setPointerCapture?.(e.pointerId);
-
-    // 고스트
-    const rect = card.getBoundingClientRect();
-    const ghost = card.cloneNode(true);
-    ghost.classList.add('drag-ghost');
-    ghost.style.width = Math.min(200, rect.width) + 'px';
-    document.body.appendChild(ghost);
-    dragState.ghost = ghost;
-    moveGhost(e.clientX, e.clientY);
-
-    window.addEventListener('pointermove', onMove, {passive:false});
-    window.addEventListener('pointerup', onUp, {passive:false});
-    window.addEventListener('pointercancel', onCancel, {passive:false});
-    e.preventDefault();
-  }
-
-  function onMove(e){
-    if (!dragState) return;
-    const dx = e.clientX - dragState.startX;
-    const dy = e.clientY - dragState.startY;
-    if (!dragState.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) dragState.moved = true;
-
-    moveGhost(e.clientX, e.clientY);
-    highlightDrop(e.clientX, e.clientY);
-    autoScroll(e.clientX, e.clientY);
-    e.preventDefault();
-  }
-
-  function onUp(e){
-    if (!dragState) return;
-    const zone = pickDrop(e.clientX, e.clientY);
-    if (zone){
-      const it = items.find(v => v.key === dragState.key);
-      if (it){
-        const before = it.zone;
-        it.zone = zone;
-        saveZone(dragState.key, zone);
-        pushLog('drop', { key: dragState.key, from: before, to: zone });
-      }
-    }
-    cleanupDrag();
-    renderClassify();
-    e.preventDefault();
-  }
-
-  function onCancel(){ cleanupDrag(); }
-  function moveGhost(x,y){ if (dragState?.ghost){ dragState.ghost.style.left = x+'px'; dragState.ghost.style.top = y+'px'; } }
-  function cleanupDrag(){
-    zoneNatural.parentElement.classList.remove('highlight');
-    zoneHuman.parentElement.classList.remove('highlight');
-    if (dragState?.ghost) dragState.ghost.remove();
-    document.body.classList.remove('dragging');
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-    window.removeEventListener('pointercancel', onCancel);
-    dragState = null;
-  }
-
-  function pickDrop(x,y){
-    const rL = zoneNatural.getBoundingClientRect();
-    const rR = zoneHuman.getBoundingClientRect();
+  function pickDrop(x,y, rL, rR){
     if (x>=rL.left && x<=rL.right && y>=rL.top && y<=rL.bottom) return 'natural';
     if (x>=rR.left && x<=rR.right && y>=rR.top && y<=rR.bottom) return 'human';
     return null;
   }
-  function highlightDrop(x,y){
-    const z = pickDrop(x,y);
-    zoneNatural.parentElement.classList.toggle('highlight', z==='natural');
-    zoneHuman.parentElement.classList.toggle('highlight', z==='human');
-  }
+
+  // 존 내부에서 자동 스크롤
   function autoScroll(x,y){
     const zones = [zoneNatural.parentElement, zoneHuman.parentElement];
     zones.forEach(z => {
       const r = z.getBoundingClientRect();
       if (x<r.left || x>r.right || y<r.top || y>r.bottom) return;
-      const edge = 60, speed = 18;
+      const edge=60, speed=18;
       if (y - r.top < edge) z.scrollTop -= speed;
       else if (r.bottom - y < edge) z.scrollTop += speed;
     });
   }
 
-  /* ===== 클릭 확대 뷰어 ===== */
+  /* ---------------- 확대 뷰어 ---------------- */
   function openViewer(src, title){
     viewerImg.src = src;
     viewerImg.alt = title;
@@ -412,17 +415,16 @@
   viewerClose.addEventListener('click', closeViewer);
   window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeViewer(); });
 
-  /* ===== 데이터 로딩 ===== */
+  /* ---------------- 데이터 로딩 ---------------- */
   async function loadAll(){
     if (await tryListJson()) return;
     if (await tryManifest()) return;
     if (await tryAutoindex()) return;
     showOverlay();
   }
-
   async function tryListJson(){
     try{
-      const res = await fetch('assets/list.json', {cache:'no-store'});
+      const res = await fetch(LIST_JSON_URL, {cache:'no-store'});
       if(!res.ok) throw 0;
       const data = await res.json();
       const files = Array.isArray(data) ? data : (data.images || []);
@@ -439,7 +441,7 @@
   }
   async function tryManifest(){
     try{
-      const res = await fetch('assets/manifest.json', {cache:'no-store'});
+      const res = await fetch(MANIFEST_URL, {cache:'no-store'});
       if(!res.ok) throw 0;
       const data = await res.json();
       const files = Array.isArray(data) ? data : (data.images || []);
@@ -456,7 +458,7 @@
   }
   async function tryAutoindex(){
     try{
-      const res = await fetch('assets/', {cache:'no-store'});
+      const res = await fetch(AUTOINDEX_URL, {cache:'no-store'});
       if(!res.ok) throw 0;
       const html = await res.text();
       const hrefs = [...html.matchAll(/href="([^"]+\.(?:jpe?g|png|webp|gif))"/gi)].map(m => m[1]);
@@ -471,7 +473,7 @@
     }catch{ return false; }
   }
 
-  /* ===== 폴더/파일 선택 ===== */
+  /* -------------- 폴더/파일 선택 -------------- */
   function showOverlay(){ overlay.classList.remove('hide'); }
   function hideOverlay(){ overlay.classList.add('hide'); }
 
@@ -479,12 +481,12 @@
     if (window.showDirectoryPicker){
       try{
         const dir = await window.showDirectoryPicker({id:'assets-picker', mode:'read'});
-        const list = [];
+        const out = [];
         for await (const entry of dir.values()){
-          await collectFiles(entry, list);
+          await collectFiles(entry, out);
         }
-        if (!list.length) return;
-        items = list;
+        if (!out.length) return;
+        items = out;
         hideOverlay(); renderGrid();
       }catch{}
       return;
@@ -517,44 +519,6 @@
     items = files.map(f => ({ key: f.name, src: URL.createObjectURL(f), zone: loadZone(f.name) }));
     hideOverlay(); renderGrid();
   });
-
-  ['dragenter','dragover'].forEach(ev => {
-    document.addEventListener(ev, (e) => { e.preventDefault(); }, {passive:false});
-  });
-  document.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    const dt = e.dataTransfer;
-    if (!dt) return;
-    const list = [];
-    if (dt.items && dt.items[0] && dt.items[0].webkitGetAsEntry){
-      for (const it of dt.items){
-        const entry = it.webkitGetAsEntry();
-        if (entry) await traverseEntry(entry, list);
-      }
-    } else if (dt.files){
-      for (const f of dt.files){
-        if (/^image\//.test(f.type)){
-          list.push({ key: f.name, src: URL.createObjectURL(f), zone: loadZone(f.name) });
-        }
-      }
-    }
-    if (list.length){
-      items = list;
-      hideOverlay(); (classifyMode ? renderClassify() : renderGrid());
-    }
-  });
-  async function traverseEntry(entry, out){
-    if (entry.isFile){
-      await new Promise(res => entry.file(f => {
-        if (/^image\//.test(f.type)) out.push({ key: f.name, src: URL.createObjectURL(f), zone: loadZone(f.name) });
-        res();
-      }));
-    } else if (entry.isDirectory){
-      const reader = entry.createReader();
-      const entries = await new Promise(res => reader.readEntries(res));
-      for (const ent of entries){ await traverseEntry(ent, out); }
-    }
-  }
 
   // 시작
   loadAll();
