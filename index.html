@@ -13,9 +13,16 @@
     --card:#ffffff; --shadow:0 8px 22px rgba(0,0,0,.08);
     --radius:18px; --gap:14px; --minCell:190px;
     --dotSize:4px; --dotStep:36px;
-    --classifyCell:150px;      /* 분류모드 카드 고정 크기 (작고 일정) */
-    --gutterX:36px;            /* 분류모드 좌우 스크롤 여백(스마트패드) */
+
+    /* 분류모드 고정 사이즈 & 여백 */
+    --classifyCell:150px;      /* 분류모드 카드 고정 크기(작고 일정) */
+    --gutterX:36px;            /* 패드에서 좌우 스크롤 여백 */
     --dividerW:26px;           /* 중앙 분할선 두께 */
+
+    /* 중앙 버튼(크고 눈에 띄게) */
+    --zoneBtnFont: clamp(28px, 3.6vw, 36px);  /* 기존 대비 ~2배 */
+    --zoneBtnPadY: 14px;
+    --zoneBtnPadX: 22px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -80,12 +87,12 @@
   .ov-actions{margin-top:14px; display:flex; gap:10px; justify-content:center}
   .hide{display:none !important;}
 
-  /* 분류 모드 (배경을 가려 중복 보임 방지) */
+  /* 분류 모드 (배경 가려 중복 방지) */
   .classify{ position:fixed; inset:60px 0 0 0; z-index:30; display:none; background:#fff; }
   .classify.active{ display:block; }
   .zone-half{
     position:absolute; top:0; width:50%; height:100%;
-    overflow:auto; padding:18px var(--gutterX);   /* 스마트패드 스크롤 여백 */
+    overflow:auto; padding:18px var(--gutterX);
   }
   .zone-left{ left:0;
     background: radial-gradient(circle at 16px 16px, rgba(244,63,94,.28) 6px, transparent 6px) 0 0/44px 44px, transparent;
@@ -94,7 +101,7 @@
     background: radial-gradient(circle at 16px 16px, rgba(59,130,246,.28) 6px, transparent 6px) 0 0/44px 44px, transparent;
   }
 
-  /* 고정 크기 그리드(분류모드) */
+  /* 분류모드 고정 그리드 */
   .zone-grid{
     display:grid; gap:var(--gap);
     grid-template-columns:repeat(auto-fill, minmax(var(--classifyCell), 1fr));
@@ -112,7 +119,7 @@
     opacity:.98; z-index:34; pointer-events:none;
   }
 
-  /* 하이라이트(넓고 뚜렷하게) */
+  /* 넓은 하이라이트 */
   .zone-left.highlight, .zone-right.highlight{
     outline:5px dashed rgba(0,0,0,.15); outline-offset:-8px;
     animation:pulse 1s infinite;
@@ -143,6 +150,23 @@
   }
   .viewer .x{ position:absolute; top:14px; right:16px; background:#000; color:#fff; border:none; border-radius:12px; padding:10px 12px; font-size:14px; cursor:pointer; opacity:.9; }
 
+  /* 중앙 고정 버튼 (분류모드용) */
+  .zone-midbtn{
+    position:fixed; top:50%; transform:translate(-50%, -50%);
+    z-index:36; display:flex; align-items:center; gap:10px;
+    padding:var(--zoneBtnPadY) var(--zoneBtnPadX);
+    font-size:var(--zoneBtnFont); font-weight:900;
+    border-radius:999px; border:3px solid #e7ecfb; background:#fff;
+    box-shadow:0 8px 18px rgba(0,0,0,.12);
+    user-select:none; -webkit-user-select:none; cursor:default;
+  }
+  .zone-midbtn .emoji{ font-size:1.1em }
+  .zone-midbtn.left  { left:25%; }
+  .zone-midbtn.right { left:75%; }
+
+  /* 분류모드에서는 상단 작은 타이틀 숨김 */
+  .classify .zone-title{ display:none !important; }
+
   /* Fake Fullscreen fallback */
   .fakefs { overflow:hidden; }
   .fakefs .classify{ inset:60px 0 0 0; }
@@ -172,6 +196,10 @@
       <div class="zone-title">인문환경</div>
       <div id="zoneHuman" class="zone-grid"></div>
     </div>
+
+    <!-- 중앙 고정 버튼들 -->
+    <div class="zone-midbtn left" aria-hidden="true"><span class="emoji">🌿</span> 자연환경</div>
+    <div class="zone-midbtn right" aria-hidden="true"><span class="emoji">🏙️</span> 인문환경</div>
   </div>
 
   <!-- 자동 로딩 안내 -->
@@ -244,21 +272,23 @@
       <div class="shot"><img src="${item.src}" alt="${title}" draggable="false"></div>
       <div class="cap" aria-label="${title}">${title}</div>
     `;
-    // 클릭 확대 (드래그였다면 클릭 취소)
+    // 일반 모드: 클릭 → 확대
     card.addEventListener('click', () => {
-      if (card.__dragMoved) { card.__dragMoved = false; return; }
-      openViewer(item.src, title);
+      if (card.__justOpened) { card.__justOpened = false; return; } // 포인터업에서 이미 열었으면 무시
+      if (!classifyMode) openViewer(item.src, title);
     });
-    enableDrag(card);
+    enableDragTap(card, item, title);
     return card;
   }
 
-  /* 렌더 */
+  /* 기본 그리드 렌더 */
   function renderGrid(){
     grid.innerHTML = '';
     items.forEach(it => grid.appendChild(createCardEl(it)));
     autosize(grid);
   }
+
+  /* 분류모드 렌더 */
   function renderClassify(){
     zoneNatural.innerHTML = '';
     zoneHuman.innerHTML = '';
@@ -266,7 +296,6 @@
       const el = createCardEl(it);
       (it.zone === 'human' ? zoneHuman : zoneNatural).appendChild(el);
     });
-    // 분류모드는 고정 크기 — autosize 호출하지 않음
   }
 
   /* 기본 그리드 자동 축소 */
@@ -305,79 +334,119 @@
   }
   classifyBtn.addEventListener('click', () => setClassifyMode(!classifyMode));
 
-  /* ===== 드래그: 데스크탑을 위해 '넓은 절반 판정' 사용 =====
-     - 포인터가 화면의 왼쪽/오른쪽 절반에 있으면 해당 영역으로 드롭
-     - 중앙 분할선 주변 ±(dividerW)에서는 가장 가까운 쪽으로 스냅
-     - 하이라이트는 zone-half(절반 전체)를 사용 → 목표가 크게 보임
+  /* ===== 탭/클릭=확대, 길게누르기/이동=드래그 =====
+     - pointerdown 후 180ms 이내에 떼면 "탭/클릭"으로 간주 → 즉시 확대
+     - 180ms 이상 길게 누르거나, 이동 임계치(6px) 초과 → 드래그 시작
   ----------------------------------------------------------------*/
-  function enableDrag(card){
-    let state = null; // {id, ghost, x, y, moved, running}
+  function enableDragTap(card, item, title){
+    let state = null; // {id, startX, startY, armedTimer, armed, dragging, ghost, running}
+
+    const MOVE_THRESHOLD = 6;     // px
+    const HOLD_MS = 180;          // long-press to arm drag
 
     card.addEventListener('pointerdown', (e) => {
-      if (!classifyMode) return;
+      if (!classifyMode) return;          // 분류모드에서만 드래그/탭 처리
       if (e.button !== 0 && e.pointerType === 'mouse') return;
 
       const id = e.pointerId;
       card.setPointerCapture?.(id);
 
-      const ghost = card.cloneNode(true);
-      ghost.classList.add('drag-ghost');
-      const cw = Math.min(200, card.getBoundingClientRect().width);
-      ghost.style.width = cw + 'px';
-      document.body.appendChild(ghost);
-
-      state = { id, ghost, x:e.clientX, y:e.clientY, moved:false, running:false };
-      card.__dragMoved = false;
-      document.body.classList.add('dragging');
-
-      const loop = () => {
-        if (!state) return;
-        state.running = false;
-        ghost.style.left = state.x + 'px';
-        ghost.style.top  = state.y + 'px';
-        highlightDrop(state.x, state.y);
+      state = {
+        id,
+        startX: e.clientX,
+        startY: e.clientY,
+        armed: false,
+        dragging: false,
+        ghost: null,
+        running:false,
       };
+
+      // 길게 누르면 드래그 가동
+      state.armedTimer = setTimeout(() => { if(state) state.armed = true; }, HOLD_MS);
 
       const onMove = (ev) => {
         if (!state) return;
-        state.x = ev.clientX; state.y = ev.clientY;
-        if (!state.moved && (Math.abs(ev.movementX) > 2 || Math.abs(ev.movementY) > 2)){
-          state.moved = true; card.__dragMoved = true;
+        const dx = ev.clientX - state.startX;
+        const dy = ev.clientY - state.startY;
+        const moved = Math.hypot(dx,dy) > MOVE_THRESHOLD;
+
+        // 이동이 충분하거나 길게 누른 경우 드래그 시작
+        if (!state.dragging && (state.armed || moved)) {
+          startDrag(card, e.clientX, e.clientY, ev.clientX, ev.clientY);
+        } else if (state.dragging) {
+          // 드래그 중이면 고스트만 rAF로 이동
+          state.x = ev.clientX; state.y = ev.clientY;
+          if (!state.running){ state.running = true; requestAnimationFrame(loopDrag); }
+          autoScroll(ev.clientX, ev.clientY);
         }
-        if (!state.running){ state.running = true; requestAnimationFrame(loop); }
-        autoScroll(ev.clientX, ev.clientY);
         ev.preventDefault();
       };
 
       const onUp = (ev) => {
-        if (!state) return;
-        const zone = pickDropWide(state.x, state.y);
-        if (zone){
-          const key = card.dataset.key;
-          const it  = items.find(v => v.key === key);
-          if (it){ it.zone = zone; saveZone(key, zone); }
-          (zone === 'human' ? zoneHuman : zoneNatural).appendChild(card); // 즉시 이동
+        clearTimeoutSafe(state?.armedTimer);
+        if (state && !state.dragging){
+          // 탭/클릭으로 간주 → 즉시 확대
+          openViewer(item.src, title);
+          card.__justOpened = true; // 뒤따르는 click 무시
+          setTimeout(()=>{ card.__justOpened=false; }, 0);
+        } else if (state && state.dragging){
+          // 드롭 처리
+          const zone = pickDropWide(state.x ?? ev.clientX, state.y ?? ev.clientY);
+          if (zone){
+            const key = card.dataset.key;
+            const it  = items.find(v => v.key === key);
+            if (it){ it.zone = zone; saveZone(key, zone); }
+            (zone === 'human' ? zoneHuman : zoneNatural).appendChild(card);
+          }
+          cleanupDrag();
         }
-        zoneLeft.classList.remove('highlight');
-        zoneRight.classList.remove('highlight');
-        state.ghost.remove(); state = null;
-        document.body.classList.remove('dragging');
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onCancel);
         ev.preventDefault();
+        state = null;
       };
 
       const onCancel = () => {
-        if (!state) return;
-        zoneLeft.classList.remove('highlight');
-        zoneRight.classList.remove('highlight');
-        state.ghost.remove(); state = null;
-        document.body.classList.remove('dragging');
+        clearTimeoutSafe(state?.armedTimer);
+        if (state && state.dragging) cleanupDrag();
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onCancel);
+        state = null;
       };
+
+      const loopDrag = () => {
+        if (!state || !state.dragging) return;
+        state.running = false;
+        state.ghost.style.left = state.x + 'px';
+        state.ghost.style.top  = state.y + 'px';
+        highlightDrop(state.x, state.y);
+      };
+
+      function startDrag(card0, sx, sy, cx, cy){
+        if (!state || state.dragging) return;
+        state.dragging = true;
+
+        // 고스트 준비
+        const ghost = card0.cloneNode(true);
+        ghost.classList.add('drag-ghost');
+        const cw = Math.min(200, card0.getBoundingClientRect().width);
+        ghost.style.width = cw + 'px';
+        document.body.appendChild(ghost);
+        state.ghost = ghost;
+        state.x = cx; state.y = cy;
+        document.body.classList.add('dragging');
+      }
+
+      function cleanupDrag(){
+        zoneLeft.classList.remove('highlight');
+        zoneRight.classList.remove('highlight');
+        if (state?.ghost) state.ghost.remove();
+        document.body.classList.remove('dragging');
+      }
+
+      function loopDrag(){ /* shadowed above for closure */ }
 
       window.addEventListener('pointermove', onMove, {passive:false});
       window.addEventListener('pointerup', onUp, {passive:false});
@@ -386,15 +455,16 @@
     });
   }
 
+  function clearTimeoutSafe(t){ try{ clearTimeout(t); }catch{} }
+
   // 화면의 왼쪽/오른쪽 절반으로 넓게 판정 (데스크탑에 유리)
   function pickDropWide(x,y){
     const r = classifyLayer.getBoundingClientRect();
-    if (y < r.top || y > r.bottom) return null; // 화면 밖이면 무시
+    if (y < r.top || y > r.bottom) return null;
     const center = (r.left + r.right) / 2;
     const snap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dividerW')) || 26;
     if (x < center - snap/2) return 'natural';
     if (x > center + snap/2) return 'human';
-    // 분할선 바로 위에서는 더 가까운 쪽으로
     return (x < center ? 'natural' : 'human');
   }
   function highlightDrop(x,y){
@@ -403,7 +473,7 @@
     zoneRight.classList.toggle('highlight', z==='human');
   }
 
-  // 존 내부 자동 스크롤(모바일/패드에서도 적절)
+  // 존 내부 자동 스크롤
   function autoScroll(x,y){
     const zones = [zoneLeft, zoneRight];
     zones.forEach(z => {
@@ -450,7 +520,6 @@
         fsBtn.textContent = '⤢ 전체화면';
       }
     }catch{
-      // API 실패 시 대체
       document.body.classList.toggle('fakefs');
       fsBtn.textContent = document.body.classList.contains('fakefs') ? '⤡ 전체화면 해제' : '⤢ 전체화면';
     }
