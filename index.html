@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>잼보드형 캔버스 — 포스트잇 카드 + 분류하기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#182233; --muted:#7a8599; --line:#e6e9f2;
+    --card:#ffffff; --shadow:0 8px 22px rgba(0,0,0,.08);
+    --radius:18px; --gap:14px; --minCell:190px;
+    --dotSize:4px; --dotStep:36px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--ink);
+    font-family:"Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(circle at 13px 13px, #dfe6fb var(--dotSize), transparent calc(var(--dotSize) + 0.5px)) 0 0/var(--dotStep) var(--dotStep),
+      #ffffff;
+  }
+
+  /* 상단 고정 바 */
+  .topbar{
+    position:sticky; top:0; z-index:30; height:60px;
+    display:flex; align-items:center; justify-content:flex-end; gap:10px;
+    padding:10px 16px; background:linear-gradient(#fff, rgba(255,255,255,.92));
+    border-bottom:1px solid var(--line); backdrop-filter:saturate(1.1) blur(4px);
+  }
+  .btn{
+    appearance:none; border:2px solid var(--line); background:#fff; color:#0f172a;
+    padding:12px 16px; border-radius:14px; font-weight:800; cursor:pointer;
+    box-shadow:0 1px 0 rgba(0,0,0,.02); letter-spacing:.2px; font-size:15px;
+    transition:transform .05s ease, border-color .1s ease;
+  }
+  .btn:active{ transform:translateY(1px) }
+  .btn:hover{border-color:#d3d9eb}
+
+  .wrap{max-width:1200px; margin:0 auto; padding:18px}
+  .grid{
+    display:grid; gap:var(--gap);
+    grid-template-columns:repeat(auto-fit, minmax(var(--minCell), 1fr));
+    align-content:start;
+  }
+
+  /* 포스트잇 카드 */
+  .card{
+    display:flex; flex-direction:column; background:var(--card);
+    border:1.5px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); overflow:hidden;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+    touch-action:none; /* 드래그 중 페이지 스크롤 방지 */
+  }
+  .shot{ width:100%; aspect-ratio:1/1; position:relative; overflow:hidden; background:#f6f7fb; }
+  .shot img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; draggable:false; }
+  .cap{
+    padding:12px 12px; border-top:1px solid var(--line);
+    font-size:15px; line-height:1.35; min-height:44px;
+    outline:none; user-select:text; /* 캡션은 선택/편집 가능 */
+  }
+  .cap[contenteditable="true"]:focus{ box-shadow:inset 0 0 0 2px #cfe0ff; border-radius:10px; }
+
+  /* 최초 로딩 안내 */
+  .overlay{
+    position:fixed; inset:60px 0 0 0; display:flex; align-items:center; justify-content:center;
+    pointer-events:auto; z-index:25;
+    background:repeating-linear-gradient(45deg, rgba(255,255,255,.92) 0 14px, rgba(255,255,255,.97) 14px 28px);
+    border-top:1px dashed #d7dce9;
+  }
+  .ov-card{
+    background:#fff; border:1px solid var(--line); border-radius:16px;
+    padding:22px 20px; box-shadow:var(--shadow); text-align:center; max-width:560px;
+  }
+  .ov-title{font-weight:800; font-size:18px; margin-bottom:8px}
+  .ov-desc{color:#64748b; line-height:1.6}
+  .ov-actions{margin-top:14px; display:flex; gap:10px; justify-content:center}
+  .hide{display:none !important;}
+
+  /* 분류 모드 레이어 */
+  .classify{
+    position:fixed; inset:60px 0 0 0; z-index:22; display:none;
+  }
+  .classify.active{ display:block; }
+  .zone-half{
+    position:absolute; top:0; width:50%; height:100%;
+    overflow:auto; padding:18px;
+  }
+  .zone-left{ left:0;
+    background:
+      radial-gradient(circle at 16px 16px, rgba(244, 63, 94, .28) 6px, transparent 6px) 0 0/44px 44px,
+      transparent;
+  }
+  .zone-right{ right:0;
+    background:
+      radial-gradient(circle at 16px 16px, rgba(59, 130, 246, .28) 6px, transparent 6px) 0 0/44px 44px,
+      transparent;
+  }
+
+  /* 굵고 귀여운 세로선 */
+  .divider{
+    position:absolute; top:0; bottom:0; left:50%; width:24px; transform:translateX(-50%);
+    border-radius:24px;
+    background:
+      radial-gradient(circle, #f97316 5px, transparent 6px) center 14px/1px 40px repeat-y,
+      linear-gradient(180deg, #c7d2fe 0%, #f5d0fe 100%);
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,.06);
+    opacity:.98; z-index:26; pointer-events:none;
+  }
+
+  /* 더 확실한 드롭 하이라이트 */
+  .zone-left.highlight{ outline:4px dashed #f43f5e; outline-offset:-6px; animation:pulseL 1s infinite; }
+  .zone-right.highlight{ outline:4px dashed #3b82f6; outline-offset:-6px; animation:pulseR 1s infinite; }
+  @keyframes pulseL{ 0%{box-shadow:0 0 0 0 rgba(244,63,94,.25)} 70%{box-shadow:0 0 0 10px rgba(244,63,94,0)} 100%{box-shadow:0 0 0 0 rgba(244,63,94,0)} }
+  @keyframes pulseR{ 0%{box-shadow:0 0 0 0 rgba(59,130,246,.25)} 70%{box-shadow:0 0 0 10px rgba(59,130,246,0)} 100%{box-shadow:0 0 0 0 rgba(59,130,246,0)} }
+
+  /* 분류용 카드 그리드 */
+  .zone-grid{
+    display:grid; gap:var(--gap);
+    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+    padding-top:6px;
+  }
+
+  /* 드래그 고스트 */
+  .drag-ghost{
+    position:fixed; z-index:40; width:180px; pointer-events:none; opacity:.95;
+    transform:translate(-50%, -50%); filter:drop-shadow(0 10px 18px rgba(0,0,0,.18));
+  }
+  .dragging .card{ opacity:.85 }
+
+  @media (max-width:520px){ :root{ --minCell:160px } }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <button id="classifyBtn" class="btn">🧭 분류하기</button>
+    <button id="shuffle" class="btn">🔀 섞기</button>
+  </div>
+
+  <div class="wrap">
+    <div id="grid" class="grid" aria-live="polite"></div>
+  </div>
+
+  <!-- 분류 모드 레이어 -->
+  <div id="classify" class="classify" aria-hidden="true">
+    <div class="zone-half zone-left">
+      <div class="zone-title">자연환경</div>
+      <div id="zoneNatural" class="zone-grid"></div>
+    </div>
+    <div class="divider" aria-hidden="true"></div>
+    <div class="zone-half zone-right">
+      <div class="zone-title">인문환경</div>
+      <div id="zoneHuman" class="zone-grid"></div>
+    </div>
+  </div>
+
+  <!-- 폴더/파일 선택 오버레이 -->
+  <div id="overlay" class="overlay hide">
+    <div class="ov-card">
+      <div class="ov-title">이미지 목록을 자동으로 가져오지 못했어요</div>
+      <div class="ov-desc">
+        서버에서 <code>assets/</code> 목록을 제공하지 않거나 <code>list.json</code>이 없습니다.<br/>
+        아래에서 폴더/파일을 선택하면 즉시 카드가 만들어집니다.
+      </div>
+      <div class="ov-actions">
+        <button id="pickDir" class="btn">📁 폴더 선택</button>
+        <button id="pickFiles" class="btn">🖼️ 파일 선택</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 숨김 입력 -->
+  <input id="fileInput" type="file" webkitdirectory multiple accept="image/*" style="display:none" />
+  <input id="multiInput" type="file" multiple accept="image/*" style="display:none" />
+
+<script>
+(() => {
+  const grid = document.getElementById('grid');
+  const shuffleBtn = document.getElementById('shuffle');
+  const classifyBtn = document.getElementById('classifyBtn');
+  const classifyLayer = document.getElementById('classify');
+  const zoneNatural = document.getElementById('zoneNatural');
+  const zoneHuman = document.getElementById('zoneHuman');
+  const overlay = document.getElementById('overlay');
+  const pickDirBtn = document.getElementById('pickDir');
+  const pickFilesBtn = document.getElementById('pickFiles');
+  const folderInput = document.getElementById('fileInput');
+  const filesInput = document.getElementById('multiInput');
+
+  // 데이터 소스(우선순위)
+  const LIST_JSON_URL = 'assets/list.json';
+  const MANIFEST_URL  = 'assets/manifest.json';
+  const AUTOINDEX_URL = 'assets/';
+
+  const CAPTION_KEY_PREFIX  = 'jam-note-caption::';
+  const CLASSIFY_KEY_PREFIX = 'jam-note-classify::'; // natural/human 저장
+
+  const $ = (sel, el=document) => el.querySelector(sel);
+  const baseName = (p) => (p||'').split('/').pop().replace(/\.[^.]+$/, '');
+
+  let items = []; // { key, src, zone: 'pool'|'natural'|'human' }
+  let classifyMode = false;
+
+  function saveZone(key, zone){
+    try{ localStorage.setItem(CLASSIFY_KEY_PREFIX + key, zone); }catch{}
+  }
+  function loadZone(key){
+    try{ return localStorage.getItem(CLASSIFY_KEY_PREFIX + key) || 'pool'; }catch{ return 'pool'; }
+  }
+
+  function createCardEl(item){
+    const savedCap = localStorage.getItem(CAPTION_KEY_PREFIX + item.key);
+    const title = savedCap ?? baseName(item.key);
+
+    const card = document.createElement('article');
+    card.className = 'card';
+    card.dataset.key = item.key;
+    card.dataset.zone = item.zone;
+    card.innerHTML = `
+      <div class="shot"><img src="${item.src}" alt="${title}" draggable="false"></div>
+      <div class="cap" contenteditable="true" spellcheck="false"></div>
+    `;
+    $('.cap', card).textContent = title;
+
+    // 캡션 저장
+    $('.cap', card).addEventListener('input', (e) => {
+      localStorage.setItem(CAPTION_KEY_PREFIX + item.key, e.currentTarget.textContent.trim());
+    });
+
+    // 분류 모드 드래그 활성화
+    enableDrag(card);
+    return card;
+  }
+
+  function renderGrid(){
+    grid.innerHTML = '';
+    items.forEach(it => grid.appendChild(createCardEl(it)));
+    autosize(grid);
+  }
+  function renderClassify(){
+    zoneNatural.innerHTML = '';
+    zoneHuman.innerHTML = '';
+    items.forEach(it => {
+      const el = createCardEl(it);
+      if (it.zone === 'natural') zoneNatural.appendChild(el);
+      else if (it.zone === 'human') zoneHuman.appendChild(el);
+    });
+    autosize(zoneNatural); autosize(zoneHuman);
+  }
+
+  // 카드 수가 많아지면 셀 크기 자동 축소
+  function autosize(container){
+    const n = container.children.length;
+    let cell = 200;
+    if (n >= 12) cell = 170;
+    if (n >= 20) cell = 150;
+    if (n >= 28) cell = 130;
+    if (n >= 36) cell = 120;
+    document.documentElement.style.setProperty('--minCell', cell + 'px');
+  }
+
+  // 섞기
+  function shuffleCards(){
+    items.sort(() => Math.random() - 0.5);
+    classifyMode ? renderClassify() : renderGrid();
+  }
+  shuffleBtn.addEventListener('click', shuffleCards);
+
+  // 분류 모드 토글
+  function setClassifyMode(on){
+    classifyMode = on;
+    if (on){
+      classifyLayer.classList.add('active');
+      classifyLayer.setAttribute('aria-hidden','false');
+      classifyBtn.textContent = '✅ 분류 끝내기';
+      renderClassify();
+    }else{
+      classifyLayer.classList.remove('active');
+      classifyLayer.setAttribute('aria-hidden','true');
+      classifyBtn.textContent = '🧭 분류하기';
+      renderGrid();
+    }
+  }
+  classifyBtn.addEventListener('click', () => setClassifyMode(!classifyMode));
+
+  /* ===== 전역 드래그 매니저 (Pointer Events) =====
+     - 데스크탑/안드로이드 모두 안정
+     - 드롭 즉시 localStorage 저장
+     - 드래그 중 드롭존 하이라이트 & 오토스크롤
+  */
+  let dragState = null; // {card,key,ghost}
+  function enableDrag(card){
+    card.addEventListener('pointerdown', (e) => {
+      if (!classifyMode) return;
+      if (e.button !== 0 && e.pointerType === 'mouse') return; // 마우스 좌클릭만
+      startDrag(card, e);
+    });
+  }
+
+  function startDrag(card, e){
+    const key = card.dataset.key;
+    dragState = { card, key, ghost: null };
+    document.body.classList.add('dragging');
+    card.setPointerCapture?.(e.pointerId);
+
+    // 고스트 생성
+    const rect = card.getBoundingClientRect();
+    const ghost = card.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.style.width = Math.min(200, rect.width) + 'px';
+    document.body.appendChild(ghost);
+    dragState.ghost = ghost;
+    moveGhost(e.clientX, e.clientY);
+
+    window.addEventListener('pointermove', onMove, {passive:false});
+    window.addEventListener('pointerup', onUp, {passive:false});
+    window.addEventListener('pointercancel', onCancel, {passive:false});
+  }
+
+  function onMove(e){
+    if (!dragState) return;
+    moveGhost(e.clientX, e.clientY);
+    highlightDrop(e.clientX, e.clientY);
+    autoScroll(e.clientX, e.clientY);
+    e.preventDefault();
+  }
+
+  function onUp(e){
+    if (!dragState) return;
+    const zone = pickDrop(e.clientX, e.clientY);
+    if (zone){
+      const it = items.find(v => v.key === dragState.key);
+      if (it){
+        it.zone = zone;
+        saveZone(dragState.key, zone); // ★ 즉시 저장
+      }
+    }
+    cleanupDrag();
+    renderClassify();
+    e.preventDefault();
+  }
+
+  function onCancel(){ cleanupDrag(); }
+
+  function moveGhost(x,y){
+    if (!dragState?.ghost) return;
+    dragState.ghost.style.left = x + 'px';
+    dragState.ghost.style.top  = y + 'px';
+  }
+
+  function cleanupDrag(){
+    zoneNatural.parentElement.classList.remove('highlight');
+    zoneHuman.parentElement.classList.remove('highlight');
+    if (dragState?.ghost) dragState.ghost.remove();
+    document.body.classList.remove('dragging');
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onCancel);
+    dragState = null;
+  }
+
+  function elementRect(el){ return el.getBoundingClientRect(); }
+
+  function pickDrop(x,y){
+    const rL = elementRect(zoneNatural);
+    const rR = elementRect(zoneHuman);
+    if (x>=rL.left && x<=rL.right && y>=rL.top && y<=rL.bottom) return 'natural';
+    if (x>=rR.left && x<=rR.right && y>=rR.top && y<=rR.bottom) return 'human';
+    return null;
+  }
+
+  function highlightDrop(x,y){
+    const zone = pickDrop(x,y);
+    zoneNatural.parentElement.classList.toggle('highlight', zone==='natural');
+    zoneHuman.parentElement.classList.toggle('highlight', zone==='human');
+  }
+
+  // 드래그 중 오토스크롤 (존 상단/하단 60px 근처)
+  function autoScroll(x,y){
+    const zones = [zoneNatural.parentElement, zoneHuman.parentElement];
+    zones.forEach(z => {
+      const r = z.getBoundingClientRect();
+      if (x<r.left || x>r.right || y<r.top || y>r.bottom) return;
+      const edge = 60, speed = 18;
+      if (y - r.top < edge) z.scrollTop -= speed;
+      else if (r.bottom - y < edge) z.scrollTop += speed;
+    });
+  }
+
+  /* ===== 데이터 로딩 순서 ===== */
+  async function loadAll(){
+    if (await tryListJson()) return;
+    if (await tryManifest()) return;
+    if (await tryAutoindex()) return;
+    showOverlay();
+  }
+
+  async function tryListJson(){
+    try{
+      const res = await fetch(LIST_JSON_URL, {cache:'no-store'});
+      if(!res.ok) throw 0;
+      const data = await res.json();               // {images:[...]} 또는 [...]
+      const files = Array.isArray(data) ? data : (data.images || []);
+      if(!files.length) throw 0;
+      items = files
+        .filter(p => /\.(jpe?g|png|webp|gif)$/i.test(String(p)))
+        .map(p => {
+          const key = String(p).replace(/^\.?\/*assets\//,'');
+          return { key, src: 'assets/' + key, zone: loadZone(key) };
+        });
+      renderGrid();
+      return true;
+    }catch{ return false; }
+  }
+
+  async function tryManifest(){
+    try{
+      const res = await fetch(MANIFEST_URL, {cache:'no-store'});
+      if(!res.ok) throw 0;
+      const data = await res.json();
+      const files = Array.isArray(data) ? data : (data.images || []);
+      if(!files.length) throw 0;
+      items = files
+        .filter(p => /\.(jpe?g|png|webp|gif)$/i.test(String(p)))
+        .map(p => {
+          const key = String(p).replace(/^\.?\/*assets\//,'');
+          return { key, src: 'assets/' + key, zone: loadZone(key) };
+        });
+      renderGrid();
+      return true;
+    }catch{ return false; }
+  }
+
+  async function tryAutoindex(){
+    try{
+      const res = await fetch(AUTOINDEX_URL, {cache:'no-store'});
+      if(!res.ok) throw 0;
+      const html = await res.text();
+      const hrefs = [...html.matchAll(/href="([^"]+\.(?:jpe?g|png|webp|gif))"/gi)].map(m => m[1]);
+      const unique = Array.from(new Set(hrefs)).filter(h => !h.endsWith('/'));
+      if (!unique.length) throw 0;
+      items = unique.map(p => {
+        const name = decodeURIComponent(p.split('/').pop());
+        return { key: name, src: 'assets/' + name, zone: loadZone(name) };
+      });
+      renderGrid();
+      return true;
+    }catch{ return false; }
+  }
+
+  /* ===== 폴더/파일 선택 (로컬/https에서) ===== */
+  function showOverlay(){ overlay.classList.remove('hide'); }
+  function hideOverlay(){ overlay.classList.add('hide'); }
+
+  pickDirBtn.addEventListener('click', async () => {
+    if (window.showDirectoryPicker){
+      try{
+        const dir = await window.showDirectoryPicker({id:'assets-picker', mode:'read'});
+        const list = [];
+        for await (const entry of dir.values()){
+          await collectFiles(entry, list);
+        }
+        if (!list.length) return;
+        items = list;
+        hideOverlay(); renderGrid();
+      }catch{}
+      return;
+    }
+    folderInput.click();
+  });
+  pickFilesBtn.addEventListener('click', () => filesInput.click());
+
+  async function collectFiles(handle, out){
+    if (handle.kind === 'file'){
+      const f = await handle.getFile();
+      if (!/^image\//.test(f.type)) return;
+      const key = f.name;
+      out.push({ key, src: URL.createObjectURL(f), zone: loadZone(key) });
+    } else if (handle.kind === 'directory'){
+      for await (const entry of handle.values()){
+        await collectFiles(entry, out);
+      }
+    }
+  }
+  folderInput.addEventListener('change', (e) => {
+    const files = [...e.target.files].filter(f => /^image\//.test(f.type));
+    if (!files.length) return;
+    items = files.map(f => ({ key: f.name, src: URL.createObjectURL(f), zone: loadZone(f.name) }));
+    hideOverlay(); renderGrid();
+  });
+  filesInput.addEventListener('change', (e) => {
+    const files = [...e.target.files].filter(f => /^image\//.test(f.type));
+    if (!files.length) return;
+    items = files.map(f => ({ key: f.name, src: URL.createObjectURL(f), zone: loadZone(f.name) }));
+    hideOverlay(); renderGrid();
+  });
+
+  // 드래그&드롭으로도 추가 가능
+  ['dragenter','dragover'].forEach(ev => {
+    document.addEventListener(ev, (e) => { e.preventDefault(); }, {passive:false});
+  });
+  document.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    const list = [];
+    if (dt.items && dt.items[0] && dt.items[0].webkitGetAsEntry){
+      for (const it of dt.items){
+        const entry = it.webkitGetAsEntry();
+        if (entry) await traverseEntry(entry, list);
+      }
+    } else if (dt.files){
+      for (const f of dt.files){
+        if (/^image\//.test(f.type)){
+          list.push({ key: f.name, src: URL.createObjectURL(f), zone: loadZone(f.name) });
+        }
+      }
+    }
+    if (list.length){
+      items = list;
+      hideOverlay(); (classifyMode ? renderClassify() : renderGrid());
+    }
+  });
+  async function traverseEntry(entry, out){
+    if (entry.isFile){
+      await new Promise(res => entry.file(f => {
+        if (/^image\//.test(f.type)) out.push({ key: f.name, src: URL.createObjectURL(f), zone: loadZone(f.name) });
+        res();
+      }));
+    } else if (entry.isDirectory){
+      const reader = entry.createReader();
+      const entries = await new Promise(res => reader.readEntries(res));
+      for (const ent of entries){ await traverseEntry(ent, out); }
+    }
+  }
+
+  // 시작
+  loadAll();
+})();
+</script>
+</body>
+</html>
